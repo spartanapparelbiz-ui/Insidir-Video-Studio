@@ -1,0 +1,85 @@
+{
+  "_readme": "Approved claims. A script may only state numbers and product claims listed here. Each fact needs a source you can show. Re-check before every campaign: pricing and features change. Edit this file in the app (Facts tab) or in %USERPROFILE%\\InsidirStudio\\facts.json.",
+  "last_reviewed": "2026-10-18",
+  "facts": [
+    {
+      "id": "form4_deadline",
+      "text": "Corporate insiders must report most open-market trades in their company's stock to the SEC on Form 4 within two business days.",
+      "source": "SEC: Exchange Act Section 16(a) and Rule 16a-3(g); https://www.sec.gov/files/forms-3-4-5.pdf",
+      "numbers": [
+        "two",
+        "2"
+      ]
+    },
+    {
+      "id": "form4_public",
+      "text": "Form 4 filings are public SEC records anyone can read on EDGAR. They are not nonpublic information.",
+      "source": "SEC EDGAR full-text and ownership filings; https://www.sec.gov/edgar/search/",
+      "numbers": []
+    },
+    {
+      "id": "import_cadence",
+      "text": "Insidir imports new Form 4 filings from SEC EDGAR every 15 minutes.",
+      "source": "Insidir docs/COMPLIANCE.md (Research data) and the landing page figures band",
+      "numbers": [
+        "15",
+        "fifteen"
+      ]
+    },
+    {
+      "id": "purchases_apart",
+      "text": "Insidir keeps open-market purchases and sales apart from awards, gifts and option exercises, and shows the SEC meaning of every transaction code.",
+      "source": "Insidir product: overview and insider activity pages",
+      "numbers": []
+    },
+    {
+      "id": "links_to_filing",
+      "text": "Every insider trade in Insidir links to the original SEC filing.",
+      "source": "Insidir product: insider activity and personnel files link to SEC EDGAR",
+      "numbers": []
+    },
+    {
+      "id": "personnel_files",
+      "text": "Every reporting person has a file built only from public Form 4 records: roles, every transaction in plain words, and links to the filings.",
+      "source": "Insidir README V18, person.html",
+      "numbers": []
+    },
+    {
+      "id": "follow_people",
+      "text": "You can follow insiders, and every trade they file shows up first on your overview.",
+      "source": "Insidir README V18 (People you follow)",
+      "numbers": []
+    },
+    {
+      "id": "company_reports",
+      "text": "Insidir has a company report for every company in the SEC's ticker list, with delayed prices, SEC financials, filings and insider activity.",
+      "source": "Insidir README (company.html)",
+      "numbers": []
+    },
+    {
+      "id": "trial",
+      "text": "New accounts can try Insidir for 3 days for $1; the plan then renews at $39 a month unless cancelled. Cancel any time.",
+      "source": "insidir.com landing and pricing pages (web/index.html: '$1 for 3 days, then $39 a month, cancel any time')",
+      "numbers": [
+        "3",
+        "three",
+        "$1",
+        "1",
+        "$39",
+        "39"
+      ]
+    },
+    {
+      "id": "research_only",
+      "text": "Insidir is a research tool. It is not a broker and does not give investment advice.",
+      "source": "Insidir web/index.html and docs/COMPLIANCE.md (research-only position)",
+      "numbers": []
+    }
+  ],
+  "disclaimer": "Research tool. Not investment advice.",
+  "end_card": {
+    "headline": "Insidir.",
+    "line": "Read insider trades from SEC filings",
+    "url": "insidir.com"
+  }
+}

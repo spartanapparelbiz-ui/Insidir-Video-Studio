@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Insidir Video Studio</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">Insidir<span>.</span> <em>Video Studio</em></div>
+  <div class="pills" id="pills"></div>
+  <nav class="topnav">
+    <button class="ghost" data-modal="facts">Facts</button>
+    <button class="ghost" data-modal="settings">Settings</button>
+  </nav>
+</header>
+<div class="layout">
+  <aside class="side">
+    <button class="primary wide" id="new-project">New video</button>
+    <div class="label">Projects</div>
+    <ul id="project-list" class="plist"></ul>
+  </aside>
+  <main id="main">
+    <section class="empty">
+      <h1>Make a 20–35 second Insidir video.</h1>
+      <p>Everything runs on this computer: Kokoro voices, FFmpeg editing, your own footage. No subscriptions, no watermarks.</p>
+      <ol class="how">
+        <li><b>Brief</b> what the video is about.</li>
+        <li><b>Footage</b>: upload real Insidir screen recordings and screenshots.</li>
+        <li><b>Script</b> with Claude (copy the prompt into claude.ai, paste the reply back) or start from an offline draft.</li>
+        <li><b>Voice &amp; look</b>: choose a Kokoro voice and caption colour.</li>
+        <li><b>Render</b> a 1080×1920 MP4 with captions, cuts and AI disclosures.</li>
+      </ol>
+      <button class="primary" id="new-project-2">Start a new video</button>
+    </section>
+  </main>
+</div>
+<div id="modal" class="modal" hidden>
+  <div class="modal-card">
+    <button class="ghost close" id="modal-close" aria-label="Close">✕</button>
+    <div id="modal-body"></div>
+  </div>
+</div>
+<div id="toast" class="toast" hidden></div>
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+[project]
+name = "insidir-video-studio"
+version = "1.0.0"
+description = "Local AI UGC video generator for Insidir: Claude scripts, Kokoro voices, FFmpeg editing."
+requires-python = ">=3.10"
+dependencies = ["kokoro-onnx>=0.4.9,<1", "numpy>=1.24"]
+
+[project.optional-dependencies]
+api = ["anthropic"]
+
+[project.scripts]
+insidir-studio = "insidir_studio.__main__:main"
+
+[tool.setuptools]
+packages = ["insidir_studio"]
+
+[tool.setuptools.package-data]
+insidir_studio = ["web/*", "fonts/*"]

@@ -1,0 +1,354 @@
+"""FFmpeg render pipeline: shots -> runs -> transitions + captions + audio -> 1080x1920 MP4."""
+
+from __future__ import annotations
+
+import json
+import shutil
+import time
+from pathlib import Path
+
+from . import avatar, captions, compliance, config, media, project, timeline, tts
+
+W, H, FPS = config.WIDTH, config.HEIGHT, config.FPS
+INK = "0x111111"
+SEG_ARGS = ["-r", str(FPS), "-c:v", "libx264", "-preset", "veryfast", "-crf", "15",
+            "-pix_fmt", "yuv420p", "-g", str(FPS), "-an"]
+
+
+class RenderError(RuntimeError):
+    pass
+
+
+# ----------------------------------------------------------------- geometry
+
+def _even(x: float) -> int:
+    return max(2, int(round(x / 2.0)) * 2)
+
+
+def _region(src_w: int, src_h: int, framing: str, focus, zoom: float) -> tuple[int, int, int, int]:
+    """Crop rectangle (x, y, w, h) in source pixels for a framing."""
+    fx = min(1.0, max(0.0, float(focus[0])))
+    fy = min(1.0, max(0.0, float(focus[1])))
+    if framing in ("wide", "card"):
+        return 0, 0, src_w, src_h
+    if framing in ("full", "full_tight"):
+        z = zoom * (1.18 if framing == "full_tight" else 1.0)
+        target = W / H
+        if src_w / src_h > target:
+            rh = src_h / z
+            rw = rh * target
+        else:
+            rw = src_w / z
+            rh = rw / target
+    else:  # tight / tighter: a 4:5 window into a landscape screen
+        z = zoom * (1.45 if framing == "tighter" else 1.0)
+        rh = src_h / z
+        rw = rh * 0.8
+        if rw > src_w:
+            rw = src_w
+            rh = rw / 0.8
+    rw, rh = min(rw, src_w), min(rh, src_h)
+    x = min(max(0.0, fx * src_w - rw / 2), src_w - rw)
+    y = min(max(0.0, fy * src_h - rh / 2), src_h - rh)
+    return _even(x) if x >= 2 else 0, _even(y) if y >= 2 else 0, _even(rw), _even(rh)
+
+
+def _fit(rw: int, rh: int, framing: str) -> tuple[int, int, int]:
+    """Foreground size on the 1080x1920 canvas and its centre y."""
+    if framing in ("full", "full_tight"):
+        return W, H, H // 2
+    max_w = 1000 if framing in ("wide", "card") else 920
+    max_h = 1240
+    s = min(max_w / rw, max_h / rh)
+    return _even(rw * s), _even(rh * s), 880
+
+
+def _zoom_expr(frames: int, motion: str, amount: float) -> str:
+    n = max(1, frames - 1)
+    if motion == "in":
+        return f"1+{amount}*on/{n}"
+    return f"{1 + amount}-{amount}*on/{n}"
+
+
+# ----------------------------------------------------------------- segments
+
+def _segment_inputs(shot: dict, project_dir: Path, seconds: float) -> tuple[list[str], dict]:
+    """FFmpeg input args and source info for a shot."""
+    if shot.get("avatar_video"):
+        path = Path(shot["avatar_video"])
+        info = media.probe(path)
+        return ["-ss", f"{shot['src_start']:.3f}", "-i", str(path)], {**info, "type": "video"}
+    asset = shot["asset"]
+    path = project_dir / asset["file"]
+    if asset["type"] == "video":
+        return ["-ss", f"{max(0.0, shot['src_start']):.3f}", "-i", str(path)], asset
+    return ["-loop", "1", "-framerate", str(FPS), "-t", f"{seconds + 0.5:.3f}", "-i", str(path)], asset
+
+
+def render_segment(shot: dict, frames: int, project_dir: Path, out: Path, log=None) -> Path:
+    seconds = frames / FPS
+    if shot["kind"] in ("title", "endcard") or shot.get("asset") is None and not shot.get("avatar_video"):
+        media.run(["-f", "lavfi", "-i", f"color=c={INK}:s={W}x{H}:r={FPS}",
+                   "-frames:v", str(frames), *SEG_ARGS, str(out)], log=log)
+        return out
+
+    inputs, info = _segment_inputs(shot, project_dir, seconds)
+    sw, sh = int(info.get("width") or 0), int(info.get("height") or 0)
+    if not sw or not sh:
+        raise RenderError(f"Cannot read the size of {shot['asset'].get('file')}")
+    framing = "full" if shot.get("avatar_video") else shot["framing"]
+    rx, ry, rw, rh = _region(sw, sh, framing, shot["focus"], shot["zoom"])
+    fw, fh, cy = _fit(rw, rh, framing)
+    is_video = info.get("type") == "video"
+    ss = 2 if (fw * fh) <= 1100 * 1300 else 1.5  # supersample so slow zooms stay smooth
+    zw, zh = _even(fw * ss), _even(fh * ss)
+    amount = 0.035 if framing in ("wide", "card") else 0.06
+    z = _zoom_expr(frames, shot["motion"], amount)
+    fx, fy = 0.5, 0.5
+    head = f"[0:v]fps={FPS},setsar=1"
+    if is_video:
+        head += f",tpad=stop_mode=clone:stop_duration={seconds + 1:.2f}"
+    zoom = (f"zoompan=z='{z}':x='(iw-iw/zoom)*{fx}':y='(ih-ih/zoom)*{fy}':d=1:"
+            f"s={fw}x{fh}:fps={FPS}")
+    crop = f"crop={rw}:{rh}:{rx}:{ry}"
+    if framing in ("full", "full_tight"):
+        graph = f"{head},{crop},scale={zw}:{zh}:flags=lanczos,{zoom},setsar=1[v]"
+    else:
+        graph = (
+            f"{head},split=2[a][b];"
+            f"[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=12:2,"
+            f"scale={W}:{H}:flags=bicubic,eq=brightness=-0.20:saturation=0.75[bg];"
+            f"[b]{crop},scale={zw}:{zh}:flags=lanczos,{zoom},setsar=1[fg];"
+            f"[bg][fg]overlay=x=(W-w)/2:y={cy}-h/2:shortest=1[v]"
+        )
+    media.run([*inputs, "-filter_complex", graph, "-map", "[v]", "-frames:v", str(frames),
+               *SEG_ARGS, str(out)], log=log)
+    return out
+
+
+# ----------------------------------------------------------------- assembly
+
+def _runs(shots: list[dict]) -> list[list[int]]:
+    runs: list[list[int]] = []
+    for i, sh in enumerate(shots):
+        if not runs or sh.get("transition_in"):
+            runs.append([i])
+        else:
+            runs[-1].append(i)
+    return runs
+
+
+def _concat(files: list[Path], out: Path, log=None) -> Path:
+    if len(files) == 1:
+        shutil.copyfile(files[0], out)
+        return out
+    lst = out.with_suffix(".txt")
+    lst.write_text("".join(f"file '{f.name}'\n" for f in files), encoding="utf-8")
+    media.run(["-f", "concat", "-safe", "0", "-i", lst.name, "-c", "copy", out.name], cwd=out.parent, log=log)
+    return out
+
+
+def _audio_graph(n_video: int, has_music: bool, total: float, music_db: float) -> str:
+    a = n_video
+    fade_out = max(0.0, total - 1.2)
+    voice = (f"[{a}:a]aresample=48000,aformat=channel_layouts=stereo,apad,atrim=0:{total:.3f},"
+             f"highpass=f=70,acompressor=threshold=0.12:ratio=2.5:attack=8:release=120:makeup=1.6")
+    if not has_music:
+        return voice + ",loudnorm=I=-14:TP=-1.5:LRA=9[aout]"
+    return (
+        voice + ",asplit=2[voice][sc];"
+        f"[{a + 1}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:{total:.3f},"
+        f"volume={music_db}dB,afade=t=in:d=0.6,afade=t=out:st={fade_out:.2f}:d=1.2[music];"
+        "[music][sc]sidechaincompress=threshold=0.04:ratio=10:attack=15:release=350[duck];"
+        "[voice][duck]amix=inputs=2:normalize=0:duration=first,loudnorm=I=-14:TP=-1.5:LRA=9[aout]"
+    )
+
+
+# ----------------------------------------------------------------- main entry
+
+def render(project_dir: Path, settings: dict | None = None, log=print, progress=None,
+           engine_name: str | None = None) -> dict:
+    t0 = time.time()
+    settings = settings or config.load_settings()
+    proj = project.load(project_dir)
+    progress = progress or (lambda p, msg="": None)
+    facts = compliance.load_facts()
+    script = proj.get("script") or {}
+    beats = [b for b in script.get("beats", []) if (b.get("text") or "").strip()]
+    if not beats:
+        raise RenderError("The script is empty.")
+    for i, b in enumerate(beats):
+        b.setdefault("id", f"b{i + 1}")
+
+    issues = compliance.lint(script, facts, proj.get("assets", []))
+    if compliance.has_errors(issues):
+        msgs = "; ".join(f"[{i['where']}] {i['message']}" for i in issues if i["level"] == "error")
+        raise RenderError("The claim guard blocked this render: " + msgs)
+
+    build = project_dir / "build"
+    seg_dir = build / "segments"
+    if seg_dir.exists():
+        shutil.rmtree(seg_dir)
+    seg_dir.mkdir(parents=True, exist_ok=True)
+    fonts = build / "fonts"
+    fonts.mkdir(exist_ok=True)
+    for f in config.FONTS_DIR.glob("*.otf"):
+        shutil.copyfile(f, fonts / f.name)
+
+    # 1. voice
+    progress(0.05, "Voicing the script")
+    engine = tts.get_engine(engine_name)
+    voice = proj.get("voice", {}).get("voice") or settings.get("voice", "af_heart")
+    speed = float(proj.get("voice", {}).get("speed") or settings.get("speed", 1.0))
+    end_card_on = proj.get("style", {}).get("end_card", True)
+    extra = timeline.END_CARD_SECONDS if end_card_on else 0.0
+    nar = tts.fit_narration(beats, voice, speed, engine, build, extra_seconds=extra, log=log)
+    total_est = nar.duration + extra
+    if not (config.MIN_SECONDS - 0.05 <= total_est <= config.MAX_SECONDS + 0.05):
+        raise RenderError(
+            f"The voiced video runs {total_est:.1f}s; it must be {config.MIN_SECONDS:.0f}-{config.MAX_SECONDS:.0f}s. "
+            + ("Shorten the script." if total_est > config.MAX_SECONDS else "Add a sentence or two.")
+        )
+
+    # 2. optional avatar clips for presenter beats
+    avatar_videos = {}
+    presenter_beats = [(b, bt) for b, bt in zip(beats, nar.beats) if (b.get("visual") or {}).get("kind") == "presenter"]
+    if presenter_beats and proj.get("presenter", {}).get("use_avatar"):
+        st = avatar.status(settings)
+        if st["usable"]:
+            spans = dict(zip([b["id"] for b in beats], timeline.beat_spans(nar.beats, nar.duration)))
+            pres = next((a for a in proj.get("assets", []) if a.get("role") == "presenter" and a["type"] == "image"), None)
+            if pres:
+                for b, bt in presenter_beats:
+                    s0, s1 = spans[b["id"]]
+                    clip = build / "avatar" / f"{b['id']}.wav"
+                    clip.parent.mkdir(parents=True, exist_ok=True)
+                    media.run(["-i", nar.wav, "-ss", f"{s0:.3f}", "-to", f"{s1:.3f}", str(clip)], log=log)
+                    progress(0.15, f"Animating presenter for {b['id']}")
+                    out = avatar.generate(settings, project_dir / pres["file"], clip, build / "avatar" / f"{b['id']}.mp4", log)
+                    avatar_videos[b["id"]] = str(out)
+                    # an avatar is always AI-generated
+                    pres = {**pres, "ai_generated": True}
+        else:
+            log("avatar skipped: " + " ".join(st["reasons"]))
+
+    # 3. edit decision list
+    assets = proj.get("assets", [])
+    if avatar_videos:
+        assets = [{**a, "ai_generated": True} if a.get("role") == "presenter" else a for a in assets]
+    edl = timeline.plan(beats, nar.beats, nar.words, nar.duration, assets,
+                        transitions=proj.get("style", {}).get("transitions") or settings.get("transitions", "cinematic"),
+                        end_card=end_card_on, avatar_videos=avatar_videos)
+    shots, total = edl["shots"], edl["total"]
+    (build / "edl.json").write_text(json.dumps(
+        {"total": total, "shots": [{k: v for k, v in s.items() if k != "asset"} | {"asset": (s["asset"] or {}).get("id")}
+                                   for s in shots]}, indent=2), encoding="utf-8")
+
+    # 4. shots (each extended under the next transition so the cut lands on time)
+    runs = _runs(shots)
+    run_files = []
+    run_trans = []
+    done = 0
+    for ri, run in enumerate(runs):
+        files = []
+        nxt = runs[ri + 1][0] if ri + 1 < len(runs) else None
+        ext = int(round(shots[nxt]["transition_in"]["duration"] * FPS)) if nxt is not None else 0
+        for j, si in enumerate(run):
+            sh = shots[si]
+            frames = sh["frames"] + (ext if j == len(run) - 1 else 0)
+            out = seg_dir / f"s{si:03d}.mp4"
+            progress(0.2 + 0.6 * done / len(shots), f"Shot {si + 1} of {len(shots)}")
+            render_segment(sh, frames, project_dir, out, log)
+            files.append(out)
+            done += 1
+        run_files.append(_concat(files, seg_dir / f"run{ri:02d}.mp4", log))
+        run_trans.append(shots[run[0]].get("transition_in"))
+
+    # 5. captions
+    progress(0.82, "Captions")
+    end_card = (facts.get("end_card") or {}) if end_card_on else None
+    ass = captions.build_ass(
+        nar.words, shots, beats, nar.beats, total,
+        highlight=proj.get("style", {}).get("caption_highlight") or settings.get("caption_highlight", "#FFD84D"),
+        disclaimer=facts.get("disclaimer") or compliance.AUTO_DISCLAIMER,
+        end_card=end_card, end_card_start=edl["end_card_start"],
+    )
+    (build / "captions.ass").write_text(ass, encoding="utf-8")
+
+    # 6. final: transitions + captions + mixed audio
+    progress(0.86, "Final mix and encode")
+    inputs: list[str] = []
+    for rf in run_files:
+        inputs += ["-i", str(rf.relative_to(build))]
+    inputs += ["-i", str(Path(nar.wav).relative_to(build))]
+    music = next((a for a in assets if a.get("role") == "music" and a.get("rights_confirmed")), None)
+    if music and proj.get("music", {}).get("enabled", True):
+        inputs += ["-stream_loop", "-1", "-i", str(project_dir / music["file"])]
+    parts = [f"[{i}:v]settb=AVTB,fps={FPS},format=yuv420p[r{i}]" for i in range(len(run_files))]
+    cur = "r0"
+    offset = sum(shots[si]["duration"] for si in runs[0])
+    for i in range(1, len(run_files)):
+        tr = run_trans[i]
+        parts.append(f"[{cur}][r{i}]xfade=transition={tr['type']}:duration={tr['duration']}:offset={offset:.4f}[x{i}]")
+        cur = f"x{i}"
+        offset += sum(shots[si]["duration"] for si in runs[i])
+    parts.append(f"[{cur}]ass=captions.ass:fontsdir=fonts,format=yuv420p[vout]")
+    parts.append(_audio_graph(len(run_files), bool(music and proj.get("music", {}).get("enabled", True)),
+                              total, float(proj.get("music", {}).get("volume_db", -20))))
+    out_dir = project_dir / "out"
+    out_dir.mkdir(exist_ok=True)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    name = project.slug(proj.get("name") or "insidir") + f"-{stamp}.mp4"
+    out_path = out_dir / name
+    disclosure = disclosure_text(proj, nar, settings, avatar_videos)
+    media.run([
+        *inputs, "-filter_complex", ";".join(parts), "-map", "[vout]", "-map", "[aout]",
+        "-t", f"{total:.3f}", "-r", str(FPS),
+        "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-profile:v", "high", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart",
+        "-metadata", f"title={proj.get('script', {}).get('title') or proj.get('name', '')}",
+        "-metadata", f"comment={disclosure['short']}",
+        str(out_path),
+    ], cwd=build, log=log)
+
+    info = media.probe(out_path)
+    side = out_path.with_suffix(".json")
+    report = {
+        "file": out_path.name,
+        "duration": info["duration"],
+        "width": info["width"],
+        "height": info["height"],
+        "voice": nar.voice,
+        "speed": nar.speed,
+        "engine": nar.engine,
+        "shots": len(shots),
+        "facts_used": script.get("facts_used", []),
+        "facts": [f for f in facts.get("facts", []) if f["id"] in (script.get("facts_used") or [])],
+        "assets": [{"label": a.get("label"), "file": a.get("file"), "genuine": a.get("genuine"),
+                    "ai_generated": a.get("ai_generated")} for a in assets],
+        "disclosure": disclosure,
+        "warnings": [i for i in issues if i["level"] == "warning"],
+        "render_seconds": round(time.time() - t0, 1),
+    }
+    side.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    out_path.with_suffix(".txt").write_text(disclosure["post"] + "\n", encoding="utf-8")
+    progress(1.0, "Done")
+    log(f"wrote {out_path} ({info['duration']:.1f}s, {info['width']}x{info['height']}) in {report['render_seconds']}s")
+    return report
+
+
+def disclosure_text(proj: dict, nar, settings: dict, avatar_videos: dict) -> dict:
+    ai_presenter = bool(avatar_videos) or any(
+        a.get("role") == "presenter" and a.get("ai_generated") for a in proj.get("assets", []))
+    bits = [f"Narration is an AI voice (Kokoro, voice {nar.voice})."]
+    if ai_presenter:
+        bits.append("The on-screen presenter is AI-generated.")
+    if any(a.get("genuine") for a in proj.get("assets", [])):
+        bits.append("Product footage is a real screen recording of Insidir.")
+    bits.append("Research tool. Not investment advice.")
+    short = " ".join(bits)
+    post = (
+        "Suggested post disclosure (paste into your caption, and switch on the platform's "
+        "AI-generated content label):\n\n" + short
+    )
+    return {"short": short, "post": post, "ai_voice": True, "ai_presenter": ai_presenter}
