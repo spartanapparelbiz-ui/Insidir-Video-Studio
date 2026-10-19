@@ -19,6 +19,8 @@ jobs:
   render:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      INSIDIR_STUDIO_HOME: ${{ github.workspace }}/.local-studio
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -42,8 +44,6 @@ jobs:
       - name: Fetch the free local narration model
         run: python -m insidir_studio download-models
       - name: Render 30-second original Form 4 Reel
-        env:
-          INSIDIR_STUDIO_HOME: ${{ github.workspace }}/.local-studio
         run: python examples/render_form4_reel.py --engine kokoro --destination artifacts
       - name: Check real MP4 properties
         run: |
