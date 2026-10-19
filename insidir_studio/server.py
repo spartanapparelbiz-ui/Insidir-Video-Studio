@@ -356,7 +356,7 @@ class Handler(BaseHTTPRequestHandler):
         if what == "voice-preview" and method == "POST":
             body = self._body_json()
             text = (body.get("text") or "This is how your narration will sound.").strip()[:400]
-            voice = body.get("voice") or "af_heart"
+            voice = body.get("voice") or tts.DEFAULT_VOICE
             if voice not in tts.VOICES:
                 raise ApiError(400, "Unknown voice")
             out = d / "build" / "previews" / f"{voice}-{uuid.uuid4().hex[:6]}.wav"

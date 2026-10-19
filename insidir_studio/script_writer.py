@@ -60,7 +60,7 @@ VIDEO
 - Length: {secs} seconds of narration, so {words_lo}-{words_hi} words in total.
 - Hook: {hook}
 - Call to action: {brief.get('cta') or 'Try Insidir'}
-- Narration is read by an AI voice{'; an AI-generated presenter may appear on screen' if has_presenter else ''}. Both are labelled as AI in the video.
+- Narration is read by an AI voice{'; an AI-generated presenter may appear on screen and is labelled as AI' if has_presenter else ''}. Write "Insidir" as spelled; it is pronounced "insider".
 
 FOOTAGE AVAILABLE (refer to these ids in visual.asset when one fits; otherwise leave asset out):
 {footage}

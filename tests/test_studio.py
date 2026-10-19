@@ -120,9 +120,26 @@ class CaptionTests(unittest.TestCase):
         shots = [{"start": 0, "duration": 2, "ai_presenter": True, "genuine": False}]
         ass = captions.build_ass(ws, shots, [{"id": "b1", "overlay": "Hi"}], [{"id": "b1", "start": 0, "end": 2}],
                                  3.0, "#FFD84D", "Research tool. Not investment advice.", {"headline": "Insidir."}, 2.0)
-        self.assertIn("AI voice", ass)
-        self.assertIn("AI-generated presenter", ass)
+        self.assertNotIn("AI voice", ass)  # off by default
+        self.assertIn("AI-generated presenter", ass)  # always shown for AI presenters
+        ass2 = captions.build_ass(ws, shots, [{"id": "b1", "overlay": "Hi"}], [{"id": "b1", "start": 0, "end": 2}],
+                                  3.0, "#FFD84D", "Research tool. Not investment advice.", None, None,
+                                  ai_voice_label="AI voice")
+        self.assertIn("AI voice", ass2)
         self.assertIn("Not investment advice", ass)
+
+
+class VoiceTests(unittest.TestCase):
+    def test_insidir_is_pronounced_insider(self):
+        self.assertEqual(tts.speakable("Insidir shows it. Visit insidir.com or insidir dot com."),
+                         "Insider shows it. Visit insider.com or insider dot com.")
+        # one word in, one word out, so caption timing still lines up
+        t = "Try Insidir today, at insidir.com."
+        self.assertEqual(len(t.split()), len(tts.speakable(t).split()))
+
+    def test_unknown_voice_falls_back(self):
+        self.assertEqual(tts.valid_voice("am_adam_removed"), tts.DEFAULT_VOICE)
+        self.assertEqual(whisper_align._norm("Insidir"), "insider")
 
 
 class AlignTests(unittest.TestCase):

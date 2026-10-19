@@ -25,23 +25,44 @@ SENTENCE_PAUSE = 0.20
 BEAT_PAUSE = 0.30
 LEAD_IN = 0.12
 
+# Best-sounding Kokoro voices first (Kokoro's own quality grades in brackets). The
+# "studio" entries blend two voice styles, which smooths out each voice's quirks.
 VOICES = {
-    "af_heart": "Heart (US, female, warm)",
-    "af_bella": "Bella (US, female, bright)",
-    "af_nicole": "Nicole (US, female, soft)",
-    "af_sarah": "Sarah (US, female)",
-    "af_nova": "Nova (US, female)",
-    "am_michael": "Michael (US, male, steady)",
-    "am_adam": "Adam (US, male)",
-    "am_eric": "Eric (US, male)",
-    "am_liam": "Liam (US, male)",
-    "am_onyx": "Onyx (US, male, deep)",
-    "am_puck": "Puck (US, male, lively)",
-    "bf_emma": "Emma (UK, female)",
-    "bf_isabella": "Isabella (UK, female)",
-    "bm_george": "George (UK, male)",
-    "bm_lewis": "Lewis (UK, male)",
+    "studio_warm": "Studio Warm (US, female): Heart + Bella blend [recommended]",
+    "af_heart": "Heart (US, female, warm) [A]",
+    "af_bella": "Bella (US, female, bright) [A-]",
+    "studio_bright": "Studio Bright (US, female): Bella + Nicole blend",
+    "af_nicole": "Nicole (US, female, soft, close-mic) [B-]",
+    "studio_male": "Studio Male (US, male): Michael + Fenrir blend",
+    "am_michael": "Michael (US, male, steady) [C+]",
+    "am_fenrir": "Fenrir (US, male, deep) [C+]",
+    "am_puck": "Puck (US, male, lively) [C+]",
+    "bf_emma": "Emma (UK, female) [B-]",
+    "bm_george": "George (UK, male) [C]",
 }
+BLENDS = {
+    "studio_warm": [("af_heart", 0.65), ("af_bella", 0.35)],
+    "studio_bright": [("af_bella", 0.6), ("af_nicole", 0.4)],
+    "studio_male": [("am_michael", 0.55), ("am_fenrir", 0.45)],
+}
+DEFAULT_VOICE = "studio_warm"
+
+# How words are *said* (captions still show the real spelling). Word counts must not
+# change, so every replacement is one word for one word.
+PRONOUNCE = [
+    (re.compile(r"\binsidir\b", re.I), "insider"),
+    (re.compile(r"\bEDGAR\b"), "Edgar"),
+]
+
+
+def _keep_case(src: str, rep: str) -> str:
+    return rep[0].upper() + rep[1:] if src[:1].isupper() else rep
+
+
+def speakable(text: str) -> str:
+    for pat, rep in PRONOUNCE:
+        text = pat.sub(lambda m: _keep_case(m.group(0), rep), text)
+    return text
 
 
 @dataclass
@@ -94,9 +115,15 @@ class KokoroOnnxEngine:
     def voices(self) -> list[str]:
         return sorted(self.kokoro.get_voices())
 
+    def _style(self, voice: str):
+        if voice in BLENDS:
+            return sum(w * self.kokoro.get_voice_style(v) for v, w in BLENDS[voice])
+        return voice
+
     def synth(self, text: str, voice: str, speed: float) -> np.ndarray:
         with self._lock:
-            audio, sr = self.kokoro.create(text, voice=voice, speed=float(speed), lang=_lang_for(voice), trim=True)
+            audio, sr = self.kokoro.create(speakable(text), voice=self._style(voice), speed=float(speed),
+                                           lang=_lang_for(voice), trim=True)
         if sr != self.sample_rate:
             raise RuntimeError(f"Unexpected Kokoro sample rate {sr}")
         return np.asarray(audio, dtype=np.float32)
@@ -107,7 +134,7 @@ class KokoroOnnxEngine:
             return 0.5
         try:
             with self._lock:
-                ph = self.kokoro.tokenizer.phonemize(clean, _lang_for(voice))
+                ph = self.kokoro.tokenizer.phonemize(speakable(clean), _lang_for(voice))
             n = len(re.sub(r"\s", "", ph))
             return max(1.0, float(n))
         except Exception:
@@ -151,6 +178,10 @@ def _letter_weight(word: str) -> float:
 
 def _lang_for(voice: str) -> str:
     return "en-gb" if voice.startswith("b") else "en-us"
+
+
+def valid_voice(voice: str | None) -> str:
+    return voice if voice in VOICES else DEFAULT_VOICE
 
 
 def find_model_files() -> tuple[Path, Path] | None:
@@ -338,7 +369,10 @@ def synthesize(beats: list[dict], voice: str, speed: float, engine, build: Path,
 
 def fit_narration(beats: list[dict], voice: str, speed: float, engine, build: Path,
                   extra_seconds: float = 0.0, log=None) -> Narration:
-    """Synthesize, then adjust speaking rate once (0.85-1.2) to land within 20-35 s."""
+    """Synthesize, then adjust speaking rate once (0.92-1.12) to land within 20-35 s.
+
+    Kokoro sounds most natural close to 1.0, so the range is narrow; a script that
+    still doesn't fit is reported to the user instead of being rushed."""
     nar = synthesize(beats, voice, speed, engine, build, log)
     total = nar.duration + extra_seconds
     target = None
@@ -349,7 +383,7 @@ def fit_narration(beats: list[dict], voice: str, speed: float, engine, build: Pa
     if target is not None:
         speech = max(1.0, nar.duration - LEAD_IN)
         new_speed = speed * speech / max(1.0, target - extra_seconds - LEAD_IN)
-        new_speed = float(min(1.2, max(0.85, new_speed)))
+        new_speed = float(min(1.12, max(0.92, new_speed)))
         if abs(new_speed - speed) > 0.01:
             if log:
                 log(f"narration ran {total:.1f}s; re-voicing at speed {new_speed:.2f}")

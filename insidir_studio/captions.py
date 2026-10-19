@@ -2,7 +2,7 @@
 
 - Captions: 1-3 word groups that pop in, with the spoken word highlighted.
 - Overlays: a short headline per beat, slid in at the top.
-- Disclosures: "AI voice" for the whole video, "AI-generated presenter" while an AI
+- Disclosures: "AI voice" for the whole video (optional, off by default), "AI-generated presenter" while an AI
   presenter is on screen, "Real Insidir screen recording" over genuine demo footage.
 - End card text and the research-only disclaimer.
 """
@@ -63,7 +63,7 @@ def _clean(word: str) -> str:
 
 def build_ass(words: list, shots: list[dict], beats: list[dict], beat_times: list[dict],
               total: float, highlight: str, disclaimer: str, end_card: dict | None,
-              end_card_start: float | None, ai_voice_label: str = "AI voice") -> str:
+              end_card_start: float | None, ai_voice_label: str = "") -> str:
     W, H = config.WIDTH, config.HEIGHT
     hl = _ass_color(highlight)
     header = f"""[Script Info]
@@ -125,12 +125,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             f"{{\\an8\\move({W // 2},250,{W // 2},280,0,220)\\fad(140,120)}}{_esc(text)}")
 
     # -- disclosure labels (top left), stacked
-    add(3, 0, total, "Label", "{\\an7\\pos(40,60)}" + _esc(ai_voice_label))
+    label_y = 60
+    if ai_voice_label:
+        add(3, 0, total, "Label", "{\\an7\\pos(40,60)}" + _esc(ai_voice_label))
+        label_y = 118
     for sh in shots:
+        # an AI-generated presenter is always labelled, whatever the voice setting
         if sh.get("ai_presenter"):
-            add(3, sh["start"], sh["start"] + sh["duration"], "Label", "{\\an7\\pos(40,118)}AI-generated presenter")
+            add(3, sh["start"], sh["start"] + sh["duration"], "Label", "{\\an7\\pos(40,%d)}AI-generated presenter" % label_y)
         if sh.get("genuine"):
-            add(3, sh["start"], sh["start"] + sh["duration"], "Label", "{\\an7\\pos(40,118)}Real Insidir screen recording")
+            add(3, sh["start"], sh["start"] + sh["duration"], "Label", "{\\an7\\pos(40,%d)}Real Insidir screen recording" % label_y)
 
     # -- disclaimer over the last beat, and the end card
     if beat_times:

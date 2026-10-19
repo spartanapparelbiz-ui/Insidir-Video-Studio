@@ -150,7 +150,7 @@ def _prepare_media(asset: dict, project_dir: Path, job: Path, start: float, seco
 
 def build_job(proj: dict, beats: list[dict], spans: list[tuple[float, float]], beat_times: list[dict],
               words: list, total: float, end_card_start: float | None, project_dir: Path, build: Path,
-              log=None) -> Path:
+              log=None, fps: int = config.FPS) -> Path:
     job = build / "motion"
     if job.exists():
         shutil.rmtree(job)
@@ -185,7 +185,7 @@ def build_job(proj: dict, beats: list[dict], spans: list[tuple[float, float]], b
         "template": template if template in TEMPLATES else "dot-explainer",
         "width": config.WIDTH,
         "height": config.HEIGHT,
-        "fps": config.FPS,
+        "fps": fps,
         "total": round(total, 4),
         "end_card_start": round(end_card_start, 3) if end_card_start is not None else None,
         "title": (proj.get("script") or {}).get("title") or proj.get("name", ""),

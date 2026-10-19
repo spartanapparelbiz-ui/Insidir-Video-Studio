@@ -488,7 +488,7 @@ function tabLook(el) {
   const speedLabel = h("b", {}, (v.speed || 1).toFixed(2) + "×");
   const speed = h("input", { type: "range", min: 0.85, max: 1.2, step: 0.01, value: v.speed || 1 });
   speed.oninput = () => { v.speed = Number(speed.value); speedLabel.textContent = v.speed.toFixed(2) + "×"; save(); };
-  const sample = h("input", { type: "text", value: p.script.beats[0]?.text || "Insiders have two business days to report a trade." });
+  const sample = h("input", { type: "text", value: p.script.beats[0]?.text || "Insidir shows you what insiders file with the SEC." });
   const audio = h("audio", { controls: true, style: { width: "100%", marginTop: "8px" } });
   const play = h("button", { onclick: async () => {
     play.disabled = true; play.textContent = "Voicing…";
@@ -507,7 +507,7 @@ function tabLook(el) {
   const av = S.status.avatar;
   el.append(
     h("div", { class: "panel" }, h("h2", {}, "Voice"),
-      h("p", { class: "hint" }, "Kokoro-82M runs on this computer (Apache-2.0, commercial use allowed). The video is labelled \"AI voice\"."),
+      h("p", { class: "hint" }, "Kokoro-82M runs on this computer (Apache-2.0, commercial use allowed). Every render is mastered like a voice-over: EQ, de-essing, compression and -14 LUFS loudness. \"Insidir\" is pronounced \"insider\"."),
       h("div", { class: "grid2" }, field("Kokoro voice", voice), h("label", { class: "field" }, h("span", {}, "Speaking rate"), h("div", { class: "row" }, speed, speedLabel))),
       field("Preview line", sample), play, audio),
     h("div", { class: "panel" }, h("h2", {}, "Look"),
@@ -519,7 +519,12 @@ function tabLook(el) {
           .map(([val, t]) => h("option", { value: val, selected: (st.captions || "auto") === val, disabled: val === "whisper" && !S.status.whisper.installed }, t))))(),
         "Whisper listens to the finished narration and times each caption word to it, on this computer."),
       h("label", { class: "check on" }, h("input", { type: "checkbox", checked: st.end_card !== false, onchange: e => { st.end_card = e.target.checked; save(); } }),
-        "End card (1.8 s): Insidir wordmark, line and URL from Facts, with the disclaimer")),
+        "End card (1.8 s): Insidir wordmark, line and URL from Facts, with the disclaimer"),
+      h("label", { class: "check" + (st.ai_voice_label ? " on" : "") }, h("input", { type: "checkbox", checked: !!st.ai_voice_label, onchange: e => { st.ai_voice_label = e.target.checked; save(); renderProject(); } }),
+        "Show an \"AI voice\" label on screen (the post disclosure text always mentions it)"),
+      field("Quality", (() => h("select", { onchange: e => { st.quality = e.target.value; save(); } },
+        [["high", "High: 60 fps animation, studio encode (slower)"], ["standard", "Standard: 30 fps, faster render"]]
+          .map(([val, t]) => h("option", { value: val, selected: (st.quality || "high") === val }, t))))())),
     h("div", { class: "panel" }, h("h2", {}, "Music"),
       music ? h("div", {},
         h("label", { class: "check on" }, h("input", { type: "checkbox", checked: p.music.enabled, onchange: e => { p.music.enabled = e.target.checked; save(); } }), `Use "${music.label}" (ducked under the voice)`),

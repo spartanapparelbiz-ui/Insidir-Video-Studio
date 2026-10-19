@@ -60,7 +60,7 @@ async function main() {
   const ff = spawn(ffmpegPath, [
     '-hide_banner', '-loglevel', 'error', '-y',
     '-f', 'image2pipe', '-c:v', 'png', '-framerate', String(data.fps), '-i', '-',
-    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '16', '-pix_fmt', 'yuv420p',
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '10', '-pix_fmt', 'yuv420p',
     '-r', String(data.fps), out,
   ], {stdio: ['pipe', 'inherit', 'pipe']});
   let ffErr = '';

@@ -57,7 +57,9 @@ def download() -> None:
 def _norm(w: str) -> str:
     w = w.lower().replace("’", "'")
     w = {"$1": "one", "$39": "thirtynine"}.get(w, w)
-    return re.sub(r"[^a-z0-9]", "", w)
+    w = re.sub(r"[^a-z0-9]", "", w)
+    # "Insidir" is spoken (and heard) as "insider"
+    return {"insidir": "insider", "insidircom": "insidercom", "edgar": "edgar"}.get(w, w)
 
 
 def align(wav_path: str, words: list, log=None) -> tuple[list, float]:

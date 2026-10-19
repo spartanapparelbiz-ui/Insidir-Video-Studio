@@ -7,7 +7,7 @@ import shutil
 import time
 from pathlib import Path
 
-from . import animate, avatar, captions, compliance, config, media, project, timeline, tts, whisper_align
+from . import animate, audio, avatar, captions, compliance, config, media, project, timeline, tts, whisper_align
 
 W, H, FPS = config.WIDTH, config.HEIGHT, config.FPS
 INK = "0x111111"
@@ -149,18 +149,18 @@ def _concat(files: list[Path], out: Path, log=None) -> Path:
 
 
 def _audio_graph(n_video: int, has_music: bool, total: float, music_db: float) -> str:
+    # the narration arrives already mastered to -14 LUFS (audio.master_voice)
     a = n_video
     fade_out = max(0.0, total - 1.2)
-    voice = (f"[{a}:a]aresample=48000,aformat=channel_layouts=stereo,apad,atrim=0:{total:.3f},"
-             f"highpass=f=70,acompressor=threshold=0.12:ratio=2.5:attack=8:release=120:makeup=1.6")
+    voice = f"[{a}:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,apad,atrim=0:{total:.3f}"
     if not has_music:
-        return voice + ",loudnorm=I=-14:TP=-1.5:LRA=9[aout]"
+        return voice + "[aout]"
     return (
         voice + ",asplit=2[voice][sc];"
         f"[{a + 1}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:{total:.3f},"
         f"volume={music_db}dB,afade=t=in:d=0.6,afade=t=out:st={fade_out:.2f}:d=1.2[music];"
         "[music][sc]sidechaincompress=threshold=0.04:ratio=10:attack=15:release=350[duck];"
-        "[voice][duck]amix=inputs=2:normalize=0:duration=first,loudnorm=I=-14:TP=-1.5:LRA=9[aout]"
+        "[voice][duck]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.89:level=disabled[aout]"
     )
 
 
@@ -257,7 +257,7 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
     # 1. voice
     progress(0.05, "Voicing the script")
     engine = tts.get_engine(engine_name)
-    voice = proj.get("voice", {}).get("voice") or settings.get("voice", "af_heart")
+    voice = tts.valid_voice(proj.get("voice", {}).get("voice") or settings.get("voice"))
     speed = float(proj.get("voice", {}).get("speed") or settings.get("speed", 1.0))
     end_card_on = proj.get("style", {}).get("end_card", True)
     extra = timeline.END_CARD_SECONDS if end_card_on else 0.0
@@ -283,6 +283,9 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
             log(f"whisper matched only {matched:.0%}; keeping the estimated timing")
 
     mode = proj.get("mode") or "demo"
+    # animated templates render at 60 fps for smoother motion; the demo cuts stay at 30
+    high = proj.get("style", {}).get("quality", "high") == "high"
+    out_fps = 60 if (mode == "animated" and high) else FPS
     assets = proj.get("assets", [])
     avatar_videos: dict = {}
     if mode == "animated":
@@ -291,9 +294,10 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
         if not st["ready"]:
             raise RenderError("Animated templates need Node.js and the Motion Canvas packages. Run install.bat.")
         spans = timeline.beat_spans(nar.beats, nar.duration)
-        total = round((nar.duration + extra) * FPS) / FPS
+        total = round((nar.duration + extra) * out_fps) / out_fps
         end_card_start = nar.duration if end_card_on else None
-        job = animate.build_job(proj, beats, spans, nar.beats, words, total, end_card_start, project_dir, build, log)
+        job = animate.build_job(proj, beats, spans, nar.beats, words, total, end_card_start, project_dir, build, log,
+                                fps=out_fps)
         progress(0.2, f"Animating ({animate.TEMPLATES.get(proj.get('template'), {}).get('name', 'template')})")
         motion_out = build / "motion.mp4"
         animate.render_job(job, motion_out, log=log, progress=lambda f: progress(0.2 + 0.6 * f, "Animating"))
@@ -322,19 +326,22 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
         highlight=proj.get("style", {}).get("caption_highlight") or settings.get("caption_highlight", "#FFD84D"),
         disclaimer=facts.get("disclaimer") or compliance.AUTO_DISCLAIMER,
         end_card=end_card, end_card_start=end_card_start,
+        ai_voice_label="AI voice" if proj.get("style", {}).get("ai_voice_label") else "",
     )
     (build / "captions.ass").write_text(ass, encoding="utf-8")
 
     # 6. final: transitions + captions + mixed audio
-    progress(0.86, "Final mix and encode")
+    progress(0.84, "Mastering the voice")
+    voice_wav = audio.master_voice(Path(nar.wav), build / "voice_master.wav", log=log)
+    progress(0.87, "Final mix and encode")
     inputs: list[str] = []
     for rf in run_files:
         inputs += ["-i", str(rf.relative_to(build))]
-    inputs += ["-i", str(Path(nar.wav).relative_to(build))]
+    inputs += ["-i", str(voice_wav.relative_to(build))]
     music = next((a for a in assets if a.get("role") == "music" and a.get("rights_confirmed")), None)
     if music and proj.get("music", {}).get("enabled", True):
         inputs += ["-stream_loop", "-1", "-i", str(project_dir / music["file"])]
-    parts = [f"[{i}:v]settb=AVTB,fps={FPS},format=yuv420p[r{i}]" for i in range(len(run_files))]
+    parts = [f"[{i}:v]settb=AVTB,fps={out_fps},format=yuv420p[r{i}]" for i in range(len(run_files))]
     cur = "r0"
     offset = run_durs[0]
     for i in range(1, len(run_files)):
@@ -353,9 +360,12 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
     disclosure = disclosure_text(proj, nar, settings, avatar_videos)
     media.run([
         *inputs, "-filter_complex", ";".join(parts), "-map", "[vout]", "-map", "[aout]",
-        "-t", f"{total:.3f}", "-r", str(FPS),
-        "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-profile:v", "high", "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart",
+        "-t", f"{total:.3f}", "-r", str(out_fps),
+        "-c:v", "libx264", "-preset", "slow", "-crf", "16" if high else "19",
+        *(["-tune", "animation"] if mode == "animated" else []),
+        "-profile:v", "high", "-pix_fmt", "yuv420p", "-color_primaries", "bt709", "-color_trc", "bt709",
+        "-colorspace", "bt709", "-g", str(out_fps * 2),
+        "-c:a", "aac", "-b:a", "256k", "-ar", "48000", "-movflags", "+faststart",
         "-metadata", f"title={proj.get('script', {}).get('title') or proj.get('name', '')}",
         "-metadata", f"comment={disclosure['short']}",
         str(out_path),
@@ -374,6 +384,7 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
         "mode": mode,
         "template": proj.get("template") if mode == "animated" else None,
         "caption_timing": "whisper" if words is not nar.words else "estimated",
+        "fps": out_fps,
         "shots": len(shots),
         "facts_used": script.get("facts_used", []),
         "facts": [f for f in facts.get("facts", []) if f["id"] in (script.get("facts_used") or [])],
