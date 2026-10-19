@@ -15,6 +15,24 @@ from . import config, fonts
 
 FONT = "Inter"
 
+# Caption looks. base/outline are ASS colours (&HAABBGGRR); border 3 draws an opaque box.
+CAPTION_STYLES = {
+    "pop": {"name": "Pop: grey words, the spoken word lights up and pops",
+            "base": "&H00A9AFB6", "outline": "&H00101010", "back": "&H80000000", "bw": 7, "shadow": 3, "border": 1, "pop": True},
+    "outline": {"name": "Bold outline: white with a heavy black edge",
+                "base": "&H00FFFFFF", "outline": "&H00000000", "back": "&H00000000", "bw": 11, "shadow": 0, "border": 1, "pop": True},
+    "boxed": {"name": "Boxed: white on a dark box, like a news lower third",
+              "base": "&H00FFFFFF", "outline": "&H33101010", "back": "&H33101010", "bw": 16, "shadow": 0, "border": 3, "pop": False},
+    "karaoke": {"name": "Karaoke: faint words fill in as they're said",
+                "base": "&H8CFFFFFF", "outline": "&H00101010", "back": "&H80000000", "bw": 6, "shadow": 2, "border": 1, "pop": False},
+    "neon": {"name": "Neon: the spoken word glows",
+             "base": "&H00FFFFFF", "outline": "&H00101010", "back": "&H00000000", "bw": 5, "shadow": 0, "border": 1, "pop": True, "glow": True},
+    "minimal": {"name": "Minimal: small sentence-case subtitles",
+                "base": "&H00F4F1EA", "outline": "&H00101010", "back": "&H90000000", "bw": 3, "shadow": 2, "border": 1, "pop": False,
+                "size": 0.62, "case": "as_spoken"},
+}
+CAPTION_POSITIONS = {"upper": 0.30, "middle": 0.50, "lower": 0.705, "bottom": 0.83}
+
 
 def _ts(t: float) -> str:
     t = max(0.0, t)
@@ -64,7 +82,7 @@ def _clean(word: str) -> str:
 def build_ass(words: list, shots: list[dict], beats: list[dict], beat_times: list[dict],
               total: float, highlight: str, disclaimer: str, end_card: dict | None,
               end_card_start: float | None, ai_voice_label: str = "", show_captions: bool = True,
-              caption_font: str | None = None, headline_font: str | None = None) -> str:
+              caption_font: str | None = None, headline_font: str | None = None, cap: dict | None = None) -> str:
     """caption_font / headline_font: ids from fonts.FONTS. Labels, the disclaimer and the end
     card stay in Inter, the Insidir brand face."""
     W, H = config.WIDTH, config.HEIGHT
@@ -72,7 +90,9 @@ def build_ass(words: list, shots: list[dict], beats: list[dict], beat_times: lis
     hf = fonts.get(headline_font)
     cap_name, cap_bold = cf["ass"]
     head_name, head_bold = hf["ass"]
-    cap_size = round(84 * cf.get("scale", 1.0))
+    cap = cap or {}
+    cs = CAPTION_STYLES.get(cap.get("style") or "pop", CAPTION_STYLES["pop"])
+    cap_size = round(84 * cf.get("scale", 1.0) * cs.get("size", 1.0) * float(cap.get("size") or 1.0))
     head_size = round(54 * hf.get("scale", 1.0))
     b = lambda on: -1 if on else 0
     hl = _ass_color(highlight)
@@ -87,7 +107,7 @@ YCbCr Matrix: TV.709
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Caption,{cap_name},{cap_size},&H00A9AFB6,&H00A9AFB6,&H00101010,&H80000000,{b(cap_bold)},0,0,0,100,100,0,0,1,7,3,5,60,60,0,1
+Style: Caption,{cap_name},{cap_size},{cs["base"]},{cs["base"]},{cs["outline"]},{cs["back"]},{b(cap_bold)},0,0,0,100,100,0,0,{cs["border"]},{cs["bw"]},{cs["shadow"]},5,60,60,0,1
 Style: Overlay,{head_name},{head_size},&H00F4F1EA,&H00F4F1EA,&H00111111,&H00111111,{b(head_bold)},0,0,0,100,100,0,0,3,18,0,8,80,80,0,1
 Style: Label,{FONT},30,&H00F4F1EA,&H00F4F1EA,&H33111111,&H33111111,-1,0,0,0,100,100,1,0,3,10,0,7,40,40,0,1
 Style: EndHead,Source Serif 4 Medium,160,&H00F4F1EA,&H00F4F1EA,&H00111111,&H00111111,0,0,0,0,100,100,-5,0,1,0,0,5,60,60,0,1
@@ -107,20 +127,31 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     caption_end = end_card_start if end_card_start is not None else total
 
     # -- captions: each group gets one event per word so the spoken word lights up
-    cap_y = int(H * 0.705)
-    groups = group_words(words) if show_captions else []
+    cap_y = int(H * CAPTION_POSITIONS.get(cap.get("position") or "lower", 0.705))
+    per = max(1, min(5, int(cap.get("words") or 3)))
+    groups = group_words(words, per, 7 + per * 6) if show_captions else []
+    upper = (cap.get("case") or cs.get("case") or "upper") == "upper"
+    base = cs["base"] + "&"
     for gi, g in enumerate(groups):
         g_start = g[0].start - 0.05
         nxt = groups[gi + 1][0].start - 0.05 if gi + 1 < len(groups) else caption_end
         g_end = min(nxt, g[-1].end + 0.45, caption_end)
-        texts = [_esc(_clean(w.text)).upper() for w in g]
+        texts = [_esc(_clean(w.text)) for w in g]
+        texts = [t.upper() for t in texts] if upper else texts
         for wi, w in enumerate(g):
             s = g_start if wi == 0 else w.start
             e = g[wi + 1].start if wi + 1 < len(g) else g_end
             parts = []
+            if cs.get("glow"):   # the spoken word glows in the highlight colour
+                on = f"{{\\c&HFFFFFF&\\3c{hl}\\blur9\\bord8}}"
+                off = f"{{\\c{base}\\3c{cs['outline']}&\\blur0\\bord{cs['bw']}}}"
+            else:
+                on = f"{{\\c{hl}\\1a&H00&}}"
+                off = f"{{\\c{base}\\1a&H{base[2:4]}&}}"
             for j, t in enumerate(texts):
-                parts.append(f"{{\\c{hl}}}{t}{{\\c&H00A9AFB6&}}" if j == wi else t)
-            pop = "{\\fscx78\\fscy78\\t(0,110,\\fscx104\\fscy104)\\t(110,170,\\fscx100\\fscy100)}" if wi == 0 else ""
+                parts.append(f"{on}{t}{off}" if j == wi else t)
+            pop = ("{\\fscx78\\fscy78\\t(0,110,\\fscx104\\fscy104)\\t(110,170,\\fscx100\\fscy100)}"
+                   if wi == 0 and cs.get("pop") else "")
             add(2, s, e, "Caption", f"{{\\an5\\pos({W // 2},{cap_y})}}{pop}{' '.join(parts)}")
 
     # -- per-beat headline overlays
@@ -132,7 +163,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             continue
         s, e = bt["start"] + 0.1, min(bt["end"], caption_end)
         add(1, s, e, "Overlay",
-            f"{{\\an8\\move({W // 2},250,{W // 2},280,0,220)\\fad(140,120)}}{_esc(text)}")
+            f"{{\\an8\\move({W // 2},{int(H * 0.13)},{W // 2},{int(H * 0.146)},0,220)\\fad(140,120)}}{_esc(text)}")
 
     # -- disclosure labels (top left), stacked
     label_y = 60

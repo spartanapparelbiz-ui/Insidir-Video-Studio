@@ -150,21 +150,50 @@ function lintSoon(delay = 600) {
 }
 
 // ------------------------------------------------------------ project view
-const TABS = [["brief", "Brief", "brief"], ["footage", "Footage", "footage"], ["script", "Script", "script"], ["look", "Voice & look", "voice"], ["render", "Render", "render"]];
+const TABS = [["brief", "Brief", "brief"], ["footage", "Footage", "footage"], ["script", "Script", "script"], ["look", "Voice & sound", "voice"], ["style", "Style", "sparkle"], ["render", "Render", "render"]];
 
 function renderProject() {
   const main = document.getElementById("main");
-  main.innerHTML = "";
   const p = P();
+  // Re-rendering the same tab (after a toggle, a pick, an upload) must not jump the page:
+  // hold the height while the DOM is rebuilt and put the scroll back where it was.
+  const sameTab = S.renderedTab === S.tab && S.renderedProject === p.id;
+  const scroller = document.scrollingElement;
+  const y = scroller.scrollTop;
+  if (sameTab) main.style.minHeight = main.offsetHeight + "px";
+  const prevIndicator = S.tabIndicator;
+  main.innerHTML = "";
+  const indicator = h("span", { class: "tab-indicator" });
+  const tabs = h("div", { class: "tabs" }, TABS.map(([id, label, icon], i) =>
+    h("button", { class: S.tab === id ? "on" : "", "data-tab": id, onclick: () => {
+      if (S.tab === id) return;
+      S.tab = id; renderProject(); scroller.scrollTo({ top: 0, behavior: "smooth" });
+    } }, ic(icon), h("i", {}, i + 1), label)), indicator);
   main.append(
     h("div", { class: "phead" },
       h("h1", {}, p.name), h("span", { class: "saved" }, "Saved"),
       h("span", { style: { flex: 1 } }),
       h("button", { class: "small danger", onclick: deleteProject }, ic("trash"), "Delete project")),
-    h("div", { class: "tabs" }, TABS.map(([id, label, icon], i) =>
-      h("button", { class: S.tab === id ? "on" : "", onclick: () => { S.tab = id; renderProject(); } }, ic(icon), h("i", {}, i + 1), label))),
-    h("div", { id: "tab" }));
-  ({ brief: tabBrief, footage: tabFootage, script: tabScript, look: tabLook, render: tabRender })[S.tab](document.getElementById("tab"));
+    tabs,
+    h("div", { id: "tab", class: sameTab ? "" : "enter" }));
+  ({ brief: tabBrief, footage: tabFootage, script: tabScript, look: tabLook, style: tabStyle, render: tabRender })[S.tab](document.getElementById("tab"));
+  // the underline glides from the previous tab to the new one
+  const on = tabs.querySelector("button.on");
+  const place = (el) => ({ left: el.offsetLeft, width: el.offsetWidth });
+  const to = place(on);
+  if (prevIndicator && !sameTab) {
+    indicator.style.transition = "none";
+    Object.assign(indicator.style, { transform: `translateX(${prevIndicator.left}px)`, width: prevIndicator.width + "px" });
+    indicator.offsetWidth; // commit the start position before animating
+    indicator.style.transition = "";
+  }
+  Object.assign(indicator.style, { transform: `translateX(${to.left}px)`, width: to.width + "px" });
+  S.tabIndicator = to;
+  S.renderedTab = S.tab; S.renderedProject = p.id;
+  if (sameTab) {
+    scroller.scrollTo({ top: y, behavior: "instant" });
+    requestAnimationFrame(() => { main.style.minHeight = ""; });
+  }
 }
 
 async function deleteProject() {
@@ -204,6 +233,12 @@ function stylePicker() {
   const choose = (mode, template) => {
     const changed = p.mode !== mode || (mode === "animated" && p.template !== template);
     p.mode = mode; if (template) p.template = template;
+    // real people start on the Natural look so footage reads as real, not stylised
+    if (["ugc", "people", "photo_avatar"].includes(mode) && (!p.style.preset || p.style.preset === "natural")) {
+      const n = S.status.look.presets.natural;
+      Object.assign(p.style, { preset: "natural", grade: n.grade, effects: [...n.effects], caption_style: n.caption_style,
+        camera: n.camera, camera_strength: n.camera_strength });
+    }
     save(); renderProject(); lintSoon(0);
     if (changed && p.script.beats.length) toast(mode === "ugc" ? "Format changed. Transcribe your footage on the Script tab." : "Format changed. Rewrite or redraft the script to use its fields.");
   };
@@ -224,10 +259,13 @@ function stylePicker() {
         "Your presenter photo lip-synced by a local talking-avatar model, cut like UGC with real Insidir screens. Labelled \"AI-generated presenter\".",
         () => choose("photo_avatar"), av.usable ? null : "Needs a GPU + avatar model (Settings)"),
     ]),
-    group("UGC: real people", "Film yourself (or upload a clip) and the studio transcribes it, cuts the pauses into jump cuts and adds captions, screens and sound.", [
+    group("Real humans", "Real people on screen: you or a creator on camera, or licensed footage of real people under a voice-over. Free.", [
       card(p.mode === "ugc", "/templates/ugc.jpg", "Talking head (UGC)",
-        "Your own face and voice. Pick per sentence: full face, split with the app, face bubble over the app, or app only.",
+        "Your own face and voice (or a creator's). Pick per sentence: full face, split with the app, face bubble, app only or real-people b-roll.",
         () => choose("ugc"), S.status.whisper.installed ? null : "Needs Faster Whisper (install.bat)"),
+      card(p.mode === "people", "/templates/people.jpg", "Real-people story",
+        "Cinematic stock footage of real people (Pexels, Pixabay: free) cut to a Kokoro voice-over, with your real Insidir screens in between.",
+        () => choose("people"), (S.settings.stock || {}).pexels_key || (S.settings.stock || {}).pixabay_key ? null : "Add a free Pexels or Pixabay key in Settings"),
     ]),
     group("Screen demo", "Cinematic cuts of your real Insidir recordings with a Kokoro voice-over.", [
       card(p.mode === "demo" || !p.mode, null, "Screen-recording demo", "Push-ins, whip cuts and captions over your genuine Insidir screen recordings and screenshots.", () => choose("demo")),
@@ -248,6 +286,7 @@ function tabFootage(el) {
   drop.addEventListener("dragleave", () => drop.classList.remove("over"));
   drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); uploadFiles([...e.dataTransfer.files]); });
   if (P().mode === "ugc") el.append(recorderPanel());
+  if (["people", "ugc", "demo", "photo_avatar"].includes(P().mode)) el.append(stockPanel());
   el.append(drop);
   const grid = h("div", { class: "assets" });
   for (const [name, up] of Object.entries(S.uploads)) {
@@ -273,7 +312,7 @@ function assetCard(a) {
   const notes = h("input", { type: "text", value: a.notes || "", placeholder: "What it shows (helps Claude pick shots)" });
   notes.onchange = () => { a.notes = notes.value; save(); };
   const role = h("select", { onchange: e => set("role", e.target.value) },
-    [["creator", "Me on camera (UGC)"], ["screen", "Insidir demo"], ["image", "Other image / b-roll"], ["presenter", "Presenter"], ["music", "Music"]]
+    [["creator", "Me on camera (UGC)"], ["broll", "Real-people b-roll"], ["screen", "Insidir demo"], ["image", "Other image / b-roll"], ["presenter", "Presenter"], ["music", "Music"]]
       .filter(([v]) => v !== "creator" || a.type === "video" || a.role === "creator")
       .map(([v, t]) => h("option", { value: v, selected: a.role === v }, t)));
   const check = (k, text) => h("label", { class: "check" + (a[k] ? " on" : "") },
@@ -330,6 +369,40 @@ function uploadFiles(files, role) {
     xhr.send(f);
   }
   renderProject();
+}
+
+// Real people: search free stock video (Pexels / Pixabay) and add clips to the project.
+function stockPanel(query) {
+  const p = P();
+  const q = h("input", { type: "text", value: query || S.stockQuery || "", placeholder: "What should the people be doing? e.g. woman reading phone at night" });
+  const grid = h("div", { class: "stock-grid" });
+  const msg = h("span", { class: "hint" });
+  const ideas = [...new Set(p.script.beats.map(b => (b.visual || {}).search).filter(Boolean))];
+  const run = async () => {
+    S.stockQuery = q.value; msg.textContent = "Searching…"; grid.innerHTML = "";
+    try {
+      const r = await api("POST", `projects/${p.id}/stock/search`, { query: q.value, aspect: p.style.aspect || "9:16" });
+      msg.textContent = r.results.length ? `${r.results.length} clips. Click one to add it.` : "Nothing found. Try simpler words.";
+      for (const item of r.results) {
+        const vid = h("video", { muted: true, loop: true, playsinline: true, preload: "none", poster: item.thumb });
+        const tile = h("button", { class: "stock-tile", title: `${item.provider} · ${item.author || ""}`, onmouseenter: () => { vid.src = vid.src || item.download; vid.play().catch(() => {}); }, onmouseleave: () => vid.pause(),
+          onclick: async () => {
+            tile.classList.add("busy"); tile.disabled = true;
+            try { const a = await api("POST", `projects/${p.id}/stock/add`, item); p.assets.push(a); tile.classList.add("added"); toast("Added to footage"); }
+            catch (e) { toast(e.message, true); tile.disabled = false; }
+            tile.classList.remove("busy");
+          } }, vid, h("span", {}, `${item.provider} · ${Math.round(item.duration)}s · ${item.width}×${item.height}`));
+        grid.append(tile);
+      }
+    } catch (e) { msg.textContent = ""; toast(e.message, true); }
+  };
+  q.addEventListener("keydown", e => { if (e.key === "Enter") run(); });
+  return h("div", { class: "panel" },
+    h("h2", {}, "Find real people"),
+    h("p", { class: "hint" }, "Free, licensed stock video of real people (Pexels and Pixabay). Hover to preview, click to add. Clips are b-roll under your voice-over: the people are never shown speaking for you or as customers, and the post text says it's stock."),
+    h("div", { class: "row" }, q, h("button", { class: "primary", onclick: run }, "Search")),
+    ideas.length ? h("div", { class: "chips", style: { marginTop: "8px" } }, ideas.map(t => h("span", { class: "chip", onclick: () => { q.value = t; run(); } }, t))) : null,
+    msg, grid);
 }
 
 // Webcam recorder with a teleprompter. Runs in the browser (127.0.0.1 counts as secure, so
@@ -482,7 +555,7 @@ function tabScript(el) {
     h("div", { class: "row", style: { justifyContent: "space-between" } }, h("h2", {}, "Script"), h("div", { class: "stats", id: "stats" })),
     field("Title", title),
     h("div", { id: "beats" }),
-    P().mode === "ugc" ? null : h("button", { onclick: () => { sc.beats.push({ id: "b" + (sc.beats.length + 1), text: "", visual: { kind: P().mode === "photo_avatar" ? "ugc" : "screen", layout: "face", asset: null, focus: [0.5, 0.5], zoom: 1 }, overlay: "" }); save(); renderProject(); } }, "+ Add beat"),
+    P().mode === "ugc" ? null : h("button", { onclick: () => { sc.beats.push({ id: "b" + (sc.beats.length + 1), text: "", visual: { kind: ["photo_avatar", "people"].includes(P().mode) ? "ugc" : "screen", layout: P().mode === "people" ? "broll" : "face", asset: null, focus: [0.5, 0.5], zoom: 1 }, overlay: "" }); save(); renderProject(); } }, "+ Add beat"),
     h("div", { class: "label" }, "Facts this script relies on"),
     h("div", { class: "chips" }, S.facts.facts.map(f => {
       const on = (sc.facts_used || []).includes(f.id);
@@ -503,7 +576,7 @@ function renderBeats() {
   if (!wrap) return;
   wrap.innerHTML = "";
   if (P().mode === "animated") return renderAnimatedBeats(wrap);
-  if (P().mode === "ugc" || P().mode === "photo_avatar") return renderPresenterBeats(wrap);
+  if (["ugc", "photo_avatar", "people"].includes(P().mode)) return renderPresenterBeats(wrap);
   const sc = P().script;
   const assets = P().assets.filter(a => a.role !== "music");
   sc.beats.forEach((b, i) => {
@@ -612,16 +685,16 @@ function renderAnimatedBeats(wrap) {
   updateStats();
 }
 
-const LAYOUTS = [["face", "Face"], ["split", "Split: app on top"], ["bubble", "Face bubble over app"], ["screen", "App only"]];
+const LAYOUTS = [["face", "Face"], ["split", "Split: app + face"], ["bubble", "Face bubble over app"], ["screen", "App only"], ["broll", "Real-people b-roll"]];
 
 function renderPresenterBeats(wrap) {
-  const p = P(), sc = p.script, ugcMode = p.mode === "ugc";
-  const screens = p.assets.filter(a => a.role === "screen" || a.role === "image");
+  const p = P(), sc = p.script, ugcMode = p.mode === "ugc", peopleMode = p.mode === "people";
+  const screens = p.assets.filter(a => a.role === "screen" || a.role === "image" || a.role === "broll");
   const byId = Object.fromEntries(p.assets.map(a => [a.id, a]));
   sc.beats.forEach((b, i) => {
     b.visual = b.visual || {};
     const v = b.visual;
-    v.layout = v.layout || "face";
+    v.layout = v.layout || (peopleMode ? "broll" : "face");
     const redraw = () => { save(); lintSoon(); renderBeats(); };
     const text = h("textarea", { value: b.text, rows: 2 });
     text.oninput = () => { b.text = text.value; save(); lintSoon(); updateStats(); };
@@ -632,12 +705,18 @@ function renderPresenterBeats(wrap) {
       h("input", { type: "checkbox", checked: b.keep !== false, onchange: e => { b.keep = e.target.checked; redraw(); } }), "Keep") : null;
     const layout = h("select", { onchange: e => {
       v.layout = e.target.value;
-      if (v.layout !== "face" && !v.asset && screens.length) v.asset = screens[0].id;
+      // keep the chosen clip only if it suits the new layout (people clips for b-roll, app footage otherwise)
+      const fits = a => a && (v.layout === "broll") === (a.role === "broll");
+      if (!fits(byId[v.asset])) v.asset = (screens.find(fits) || {}).id || null;
       redraw();
-    } }, LAYOUTS.map(([val, t]) => h("option", { value: val, selected: v.layout === val }, t)));
+    } }, LAYOUTS.filter(([val]) => !peopleMode || val === "broll" || val === "screen")
+      .map(([val, t]) => h("option", { value: val, selected: v.layout === val }, t)));
     const scr = v.layout === "face" ? null : h("select", { onchange: e => { v.asset = e.target.value || null; redraw(); } },
-      h("option", { value: "" }, screens.length ? "Pick a screen" : "Upload an Insidir recording first"),
-      screens.map(a => h("option", { value: a.id, selected: v.asset === a.id }, a.label)));
+      h("option", { value: "" }, v.layout === "broll" ? "Auto: next real-people clip" : (screens.length ? "Pick a screen" : "Upload an Insidir recording first")),
+      screens.filter(a => (v.layout === "broll") === (a.role === "broll"))
+        .map(a => h("option", { value: a.id, selected: v.asset === a.id }, a.label)));
+    const search = v.layout === "broll" ? h("input", { type: "text", value: v.search || "", placeholder: "Stock search, e.g. investor at laptop" }) : null;
+    if (search) search.onchange = () => { v.search = search.value; save(); };
     const overlay = h("input", { type: "text", value: b.overlay || "", placeholder: "On-screen headline (optional)" });
     overlay.oninput = () => { b.overlay = overlay.value; save(); lintSoon(); };
     const src = b.source && byId[b.source.asset];
@@ -652,7 +731,12 @@ function renderPresenterBeats(wrap) {
       h("div", {},
         ugcMode && b.source ? h("div", { class: "time" }, `${src ? src.label : "clip"} · ${fmtSec(b.source.start)}–${fmtSec(b.source.end)}`) : null,
         text, fixNote,
-        h("div", { class: "opts" }, keep, layout, scr),
+        h("div", { class: "opts" }, keep, layout, scr,
+          h("select", { title: "Camera move for this sentence", onchange: e => { v.move = e.target.value || null; save(); } },
+            h("option", { value: "" }, "Camera: auto"),
+            Object.entries(S.status.look.moves).map(([m, t]) => h("option", { value: m, selected: v.move === m }, t)))),
+        search ? h("div", { class: "row", style: { marginTop: "8px" } }, search,
+          h("button", { class: "small", onclick: () => { S.tab = "footage"; S.stockQuery = search.value; renderProject(); } }, "Find clips")) : null,
         h("div", { style: { marginTop: "8px" } }, overlay),
         v.shot ? h("div", { class: "shot" }, "Shot idea: " + v.shot) : null),
       h("div", { class: "side-tools" }, side,
@@ -744,11 +828,8 @@ function tabLook(el) {
       h("div", { class: "grid2" }, field("Kokoro voice", voice), h("label", { class: "field" }, h("span", {}, "Speaking rate"), h("div", { class: "row" }, speed, speedLabel))),
       field("Preview line", sample), play, audio),
     h("div", { class: "panel" }, h("h2", {}, "Look"),
-      h("div", { class: "grid2" }, field("Caption highlight", color, "The word being spoken lights up in this colour."),
+      h("div", { class: "grid2" }, field("Fonts, captions, grade and camera", h("div", { class: "hint" }, "On the Style tab")),
         p.mode === "animated" ? field("Template", h("div", { class: "hint" }, (S.status.motion.templates[p.template] || {}).name || p.template, " (change it on the Brief tab)")) : field("Cuts", trans)),
-      h("div", { class: "grid2" },
-        fontPicker(st, "caption_font", "Caption font", false, p.script.beats[0]?.text || "Insiders have to report their trades"),
-        fontPicker(st, "headline_font", "Headline font", true, p.script.beats[0]?.overlay || p.script.title || "Insiders file too")),
       field("Caption timing", (() => h("select", { onchange: e => { st.captions = e.target.value; save(); } },
         [["auto", S.status.whisper.installed ? "Automatic: Faster Whisper" : "Automatic: estimated (Faster Whisper not installed)"],
          ["whisper", "Faster Whisper (most accurate)"], ["estimate", "Estimated from the audio (fastest)"]]
@@ -779,7 +860,87 @@ function tabLook(el) {
         "Animate the presenter with the local talking-avatar model"),
       av.usable ? h("div", { class: "notice ok" }, "Avatar model ready. Avatar shots are always labelled \"AI-generated presenter\".")
         : h("div", { class: "notice" }, "Avatar step unavailable: " + av.reasons.join(" "))),
-    h("button", { class: "primary", onclick: () => { S.tab = "render"; renderProject(); } }, "Next: render")].filter(Boolean));
+    h("button", { class: "primary", onclick: () => { S.tab = "style"; renderProject(); } }, "Next: style")].filter(Boolean));
+}
+
+// ------------------------------------------------------------ 5 style
+const ASPECT_SHAPES = { "9:16": [18, 32], "4:5": [26, 32], "1:1": [30, 30], "16:9": [40, 23] };
+
+function tabStyle(el) {
+  const p = P(), st = p.style, L = S.status.look;
+  // any manual change turns the look into a custom one
+  const set = (k, v, redraw = true) => { st[k] = v; st.preset = "custom"; save(); if (redraw) renderProject(); };
+  const swatch = (grade, effects) => `/api/projects/${p.id}/look-preview?grade=${grade}&effects=${(effects || []).join(",")}`;
+  // presets
+  const presets = h("div", { class: "pgrid" }, Object.entries(L.presets).map(([id, pr]) =>
+    h("button", { class: "pcard" + (st.preset === id ? " on" : ""), onclick: () => {
+      Object.assign(st, { preset: id, grade: pr.grade, effects: [...pr.effects], caption_style: pr.caption_style,
+        camera: pr.camera, camera_strength: pr.camera_strength || 1, transitions: pr.transitions });
+      save(); renderProject(); toast(`${pr.name} look applied. Fine-tune anything below.`);
+    } }, h("img", { src: swatch(pr.grade, pr.effects), alt: "", loading: "lazy" }), h("b", {}, pr.name))));
+  // frame
+  const aspects = h("div", { class: "seg aspects" }, Object.entries(L.aspects).map(([id, name]) => {
+    const [w, hh] = ASPECT_SHAPES[id];
+    return h("button", { class: (st.aspect || "9:16") === id ? "on" : "", title: name, onclick: () => set("aspect", id) },
+      h("span", { class: "shape", style: { width: w + "px", height: hh + "px" } }), id);
+  }));
+  // grades
+  const grades = h("div", { class: "ggrid" }, Object.entries(L.grades).map(([id, name]) =>
+    h("button", { class: "gcard" + ((st.grade || "none") === id ? " on" : ""), onclick: () => set("grade", id) },
+      h("img", { src: swatch(id, []), alt: "", loading: "lazy" }), h("span", {}, name))));
+  // effects
+  const fx = new Set(st.effects || []);
+  const effects = h("div", { class: "fxgrid" }, Object.entries(L.effects).map(([id, name]) =>
+    h("label", { class: "check" + (fx.has(id) ? " on" : "") }, h("input", { type: "checkbox", checked: fx.has(id), onchange: e => {
+      e.target.checked ? fx.add(id) : fx.delete(id); set("effects", [...fx]);
+    } }), name)));
+  const strength = h("div", { class: "seg" }, [["subtle", "Subtle"], ["normal", "Normal"], ["strong", "Strong"]].map(([v, t]) =>
+    h("button", { class: (st.look_strength || "normal") === v ? "on" : "", onclick: () => set("look_strength", v) }, t)));
+  // camera
+  const presenter = p.mode === "ugc" || p.mode === "photo_avatar" || p.mode === "people";
+  const camera = h("select", { onchange: e => set("camera", e.target.value, false) },
+    Object.entries(L.camera).map(([v, t]) => h("option", { value: v, selected: (st.camera || "dynamic") === v }, t)));
+  const camK = h("input", { type: "range", min: 0.4, max: 2, step: 0.1, value: st.camera_strength || 1 });
+  camK.onchange = () => set("camera_strength", Number(camK.value), false);
+  // captions
+  const color = h("input", { type: "color", value: st.caption_highlight || "#FFFFFF" });
+  color.oninput = () => { st.caption_highlight = color.value; save(); };
+  const capStyle = h("select", { onchange: e => set("caption_style", e.target.value, false) },
+    Object.entries(L.captions).map(([v, t]) => h("option", { value: v, selected: (st.caption_style || "pop") === v }, t)));
+  const segOf = (key, opts, def) => h("div", { class: "seg" }, opts.map(([v, t]) =>
+    h("button", { class: String(st[key] ?? def) === String(v) ? "on" : "", onclick: () => set(key, v) }, t)));
+  const capSize = h("input", { type: "range", min: 0.6, max: 1.6, step: 0.05, value: st.caption_size || 1 });
+  const capSizeLabel = h("b", {}, Math.round((st.caption_size || 1) * 100) + "%");
+  capSize.oninput = () => { capSizeLabel.textContent = Math.round(capSize.value * 100) + "%"; };
+  capSize.onchange = () => set("caption_size", Number(capSize.value), false);
+  const ownCaps = p.mode === "animated" && (S.status.motion.templates[p.template] || {}).own_captions;
+  el.append(
+    h("div", { class: "panel" }, h("h2", {}, "Looks"),
+      h("p", { class: "hint" }, "One click sets the grade, film effects, caption style and camera. Everything stays editable below. All of it is rendered on this PC with FFmpeg; nothing is uploaded or paid for."),
+      presets),
+    h("div", { class: "panel" }, h("h2", {}, "Frame"),
+      aspects,
+      h("p", { class: "hint" }, "Every format renders natively in the shape you pick (the short side is always 1080 px). Landscape UGC puts the app and your face side by side; vertical selfies sit on a blurred fill. Animated templates keep their composition centred and extend the background to the edges.")),
+    h("div", { class: "panel" }, h("h2", {}, "Colour grade"), grades),
+    h("div", { class: "panel" }, h("h2", {}, "Film effects"), effects,
+      h("div", { class: "row", style: { marginTop: "10px" } }, h("span", { class: "hint" }, "Strength"), strength)),
+    presenter ? h("div", { class: "panel" }, h("h2", {}, "Camera"),
+      h("div", { class: "grid2" }, field("Camera style", camera, "Moves are eased and computed at 2x resolution, so they glide instead of jittering."),
+        h("label", { class: "field" }, h("span", {}, "Movement"), camK)),
+      h("p", { class: "hint" }, "Set a move for a single sentence on the Script tab (push-in, pull-out, crash zoom, pan, tilt, handheld, impact shake).")) : null,
+    h("div", { class: "panel" }, h("h2", {}, "Captions"),
+      ownCaps ? h("p", { class: "hint" }, "This template animates its own captions; size, case, position and words per group apply, the caption style doesn't.") : null,
+      h("div", { class: "grid2" }, field("Style", capStyle), field("Spoken-word colour", color)),
+      h("div", { class: "grid2" },
+        field("Position", segOf("caption_position", [["upper", "Upper"], ["middle", "Middle"], ["lower", "Lower"], ["bottom", "Bottom"]], "lower")),
+        field("Words at a time", segOf("caption_words", [[1, "1"], [2, "2"], [3, "3"], [4, "4"]], 3))),
+      h("div", { class: "grid2" },
+        field("Letter case", segOf("caption_case", [["upper", "UPPERCASE"], ["as_spoken", "As spoken"]], "upper")),
+        h("label", { class: "field" }, h("span", {}, "Size"), h("div", { class: "row" }, capSize, capSizeLabel))),
+      h("div", { class: "grid2" },
+        fontPicker(st, "caption_font", "Caption font", false, p.script.beats[0]?.text || "Insiders have to report their trades"),
+        fontPicker(st, "headline_font", "Headline font", true, p.script.beats[0]?.overlay || p.script.title || "Insiders file too"))),
+    h("button", { class: "primary", onclick: () => { S.tab = "render"; renderProject(); } }, "Next: render"));
 }
 
 // Font choice with a live preview. The fonts are served by the studio itself (/fonts/...).
@@ -819,6 +980,8 @@ function tabRender(el) {
       ? [S.status.motion.ready, "Motion Canvas installed (Node.js + packages)"]
       : p.mode === "ugc"
         ? [p.assets.some(a => a.role === "creator" && a.rights_confirmed), "A cleared \"Me on camera\" clip"]
+        : p.mode === "people"
+          ? [p.assets.some(a => a.role === "broll" && a.rights_confirmed), "At least one real-people clip (Footage tab: Find real people)"]
         : p.mode === "photo_avatar"
           ? [p.assets.some(a => a.role === "presenter" && a.type === "image" && a.rights_confirmed), "A cleared presenter photo"]
           : [p.assets.some(a => a.rights_confirmed && (a.role === "screen" || a.role === "image")), "At least one cleared demo recording or screenshot"],
@@ -1070,6 +1233,11 @@ function modalSettings(el) {
       h("p", { class: "hint" }, "The free way is copy and paste with claude.ai. If you already pay for an Anthropic API key you can let the studio send the prompt directly; API calls are billed by Anthropic."),
       c(cl, "api_enabled", "Use the Claude API (optional, paid by your API account)"),
       h("div", { class: "grid2" }, field("API key (stored only on this computer)", t(cl, "api_key", "sk-ant-…", "password")), field("Model", t(cl, "model", "claude-opus-5-5")))),
+    h("div", { class: "panel" }, h("h3", {}, "Real-people footage (free)"),
+      h("p", { class: "hint" }, "Search millions of free stock clips of real people from inside the studio. Both keys are free: make an account and copy the key (no card, no plan). Their licences allow commercial use without credit. Add one or both."),
+      h("div", { class: "grid2" },
+        field("Pexels API key", t(s.stock = s.stock || {}, "pexels_key", "paste your free key", "password"), h("a", { href: "https://www.pexels.com/api/", target: "_blank", rel: "noopener" }, "Get a free Pexels key ↗")),
+        field("Pixabay API key", t(s.stock, "pixabay_key", "paste your free key", "password"), h("a", { href: "https://pixabay.com/api/docs/", target: "_blank", rel: "noopener" }, "Get a free Pixabay key ↗")))),
     h("div", { class: "panel" }, h("h3", {}, "Talking avatar (optional)"),
       h("p", { class: "hint" }, `GPU: ${gpus.length ? gpus.map(g => `${g.name} (${g.vram_gb} GB)`).join(", ") : "none detected"}. Install a model yourself, check its licence and the licence of every weight file it downloads, then give the command the studio should run. Placeholders: {image} {audio} {output} {outdir}.`),
       c(av, "enabled", "Enable the avatar step"),
@@ -1090,5 +1258,9 @@ function modalSettings(el) {
       catch (e) { toast(e.message, true); }
     } }, "Save settings"));
 }
+
+// images fade in once loaded (and stop their placeholder shimmer)
+document.addEventListener("load", e => { if (e.target.tagName === "IMG") e.target.classList.add("loaded"); }, true);
+document.addEventListener("error", e => { if (e.target.tagName === "IMG") e.target.classList.add("loaded"); }, true);
 
 boot();

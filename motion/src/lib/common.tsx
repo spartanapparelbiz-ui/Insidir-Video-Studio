@@ -6,9 +6,11 @@ import {icon} from './icons';
 import {R, Sketch, drawOn, eraseOff, type RoughStyle} from './rough';
 import {until} from './timing';
 import {F} from './fonts';
+import {frame} from './frame';
 
-export const W = 1080;
-export const H = 1920;
+// the visible area in design units (1080x1920 for 9:16, wider/shorter for other frames)
+export const W = frame().vw;
+export const H = frame().vh;
 // Captions are burned in later by FFmpeg around y = +390 and the AI labels sit in the
 // top-left corner, so templates keep their content between these lines.
 export const SAFE_TOP = -800;

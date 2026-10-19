@@ -16,6 +16,7 @@ import json
 import re
 
 from . import animate, compliance
+from .ugc import MOVES
 
 SCHEMA_EXAMPLE = {
     "title": "How to read an insider trade in 30 seconds",
@@ -35,6 +36,15 @@ UGC_EXAMPLE = {
     ],
 }
 
+PEOPLE_EXAMPLE = {
+    "title": "What executives have to tell you",
+    "facts_used": ["form4_deadline"],
+    "beats": [
+        {"id": "b1", "text": "Hook line.", "visual": {"layout": "broll", "search": "man checking stock app at night"}, "overlay": ""},
+        {"id": "b2", "text": "...", "visual": {"layout": "screen", "asset": "a1b2c3d4", "shot": "the filing feed"}, "overlay": "Form 4"},
+    ],
+}
+
 HOOKS = {
     "question": "Open with a sharp question that opens a curiosity gap the video pays off later.",
     "myth": "Open by correcting a common misconception about insider trades (truthfully).",
@@ -48,6 +58,7 @@ VOICE_LINE = {
     "animated": "Narration is read by an AI voice",
     "photo_avatar": "Narration is read by an AI voice and lip-synced by an AI-generated presenter, who is labelled as AI on screen",
     "ugc": "These are talking points the creator will say on camera in their own words and voice",
+    "people": "Narration is read by an AI voice over licensed stock footage of real people (b-roll, never shown speaking or endorsing anything)",
 }
 RULE5_AI = ('5. No first-person testimonials or personal results ("I made", "I\'ve been using", "my portfolio"). '
             'The voice is AI, so these would be made up. Speak to the viewer ("you") or describe what is on screen.')
@@ -116,6 +127,18 @@ def structure_for(proj: dict) -> str:
 
 Reply with ONLY a JSON object in this shape, no prose before or after:
 """ + json.dumps(UGC_EXAMPLE, indent=2)
+    if mode == "people":
+        return """STRUCTURE
+- 6 to 9 short beats (1.5-3.5 seconds each). Beat 1 is the hook (under 12 words). The last beat is the call to action.
+- Each beat is shown over footage of real people (stock b-roll) or the real Insidir product. "visual" has:
+  "layout": broll (real people) or screen (the Insidir app, with an "asset" id from the footage list),
+  "search": for broll, 2-5 plain words describing the shot to find on a stock site, e.g. "woman reading phone at night",
+  "investor at laptop", "busy city crosswalk", "man taking notes coffee shop". Concrete, filmable, no logos or brands.
+- The people are actors in stock footage: never write lines that put words in their mouths or imply they are customers.
+- An optional "overlay" headline of 2-5 words on 2-3 beats.
+
+Reply with ONLY a JSON object in this shape, no prose before or after:
+""" + json.dumps(PEOPLE_EXAMPLE, indent=2)
     if mode == "photo_avatar":
         return """STRUCTURE
 - 5 to 8 beats. Beat 1 is the hook (under 12 words), said to camera by the presenter. The last beat is the call to action.
@@ -209,7 +232,9 @@ def normalize(script: dict, assets: list[dict] | None = None) -> dict:
                        "pose": vis.get("pose") if vis.get("pose") in animate.POSES else "",
                        "label": str(vis.get("label") or "").strip().upper()[:12],
                        "emphasis": str(vis.get("emphasis") or "").strip()[:28],
-                       "layout": vis.get("layout") if vis.get("layout") in ("face", "split", "bubble", "screen") else ""},
+                       "layout": vis.get("layout") if vis.get("layout") in ("face", "split", "bubble", "screen", "broll") else "",
+                       "search": str(vis.get("search") or "").strip()[:60],
+                       "move": vis.get("move") if vis.get("move") in MOVES else ""},
             "overlay": str(b.get("overlay") or "")[:40],
         })
     if not beats:
@@ -431,6 +456,23 @@ def presenter_draft(proj: dict, script: dict) -> dict:
     return script
 
 
+STOCK_SEARCHES = ["man checking stock app at night", "woman reading news on phone", "investor working on laptop",
+                  "business people walking city", "person taking notes at desk", "woman smiling at phone",
+                  "office worker thinking", "friends talking coffee shop", "man scrolling phone on train"]
+
+
+def people_draft(proj: dict, script: dict) -> dict:
+    """Real-people b-roll on most beats, the real product on one or two."""
+    screens = [a for a in proj.get("assets", []) if a.get("role") in ("screen", "image") and a.get("rights_confirmed")
+               and a.get("genuine")]
+    for i, b in enumerate(script["beats"]):
+        use_screen = screens and i in (2, 4)
+        b["visual"].update({"kind": "people", "layout": "screen" if use_screen else "broll",
+                            "asset": screens[i % len(screens)]["id"] if use_screen else None,
+                            "search": "" if use_screen else STOCK_SEARCHES[i % len(STOCK_SEARCHES)]})
+    return script
+
+
 def template_script(proj: dict, facts: dict, variant: int = 0) -> dict:
     if (proj.get("mode") or "demo") == "animated":
         return animated_draft(proj, facts)
@@ -446,6 +488,8 @@ def template_script(proj: dict, facts: dict, variant: int = 0) -> dict:
     script = normalize(script, proj.get("assets", []))
     if proj.get("mode") in ("ugc", "photo_avatar"):
         script = presenter_draft(proj, script)
+    elif proj.get("mode") == "people":
+        script = people_draft(proj, script)
     return script
 
 

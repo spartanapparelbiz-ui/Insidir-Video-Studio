@@ -7,7 +7,7 @@ import shutil
 import time
 from pathlib import Path
 
-from . import animate, audio, avatars, sound, ugc, avatar, captions, compliance, config, media, project, timeline, tts, whisper_align
+from . import animate, audio, avatars, look, sound, ugc, avatar, captions, compliance, config, media, project, timeline, tts, whisper_align
 
 W, H, FPS = config.WIDTH, config.HEIGHT, config.FPS
 INK = "0x111111"
@@ -59,13 +59,13 @@ def _region(src_w: int, src_h: int, framing: str, focus, zoom: float) -> tuple[i
 
 
 def _fit(rw: int, rh: int, framing: str) -> tuple[int, int, int]:
-    """Foreground size on the 1080x1920 canvas and its centre y."""
+    """Foreground size on the output canvas and its centre y."""
     if framing in ("full", "full_tight"):
         return W, H, H // 2
-    max_w = 1000 if framing in ("wide", "card") else 920
-    max_h = 1240
+    max_w = W * (0.93 if framing in ("wide", "card") else 0.85)
+    max_h = H * 0.645
     s = min(max_w / rw, max_h / rh)
-    return _even(rw * s), _even(rh * s), 880
+    return _even(rw * s), _even(rh * s), int(H * 0.458)
 
 
 def _zoom_expr(frames: int, motion: str, amount: float) -> str:
@@ -121,7 +121,7 @@ def render_segment(shot: dict, frames: int, project_dir: Path, out: Path, log=No
     else:
         graph = (
             f"{head},split=2[a][b];"
-            f"[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=12:2,"
+            f"[a]scale={W // 4}:{H // 4}:force_original_aspect_ratio=increase,crop={W // 4}:{H // 4},boxblur=12:2,"
             f"scale={W}:{H}:flags=bicubic,eq=brightness=-0.20:saturation=0.75[bg];"
             f"[b]{crop},scale={zw}:{zh}:flags=lanczos,{zoom},setsar=1[fg];"
             f"[bg][fg]overlay=x=(W-w)/2:y={cy}-h/2:shortest=1[v]"
@@ -241,8 +241,33 @@ def _demo_video(proj, beats, nar, words, assets, settings, end_card_on, project_
     return avatar_videos, shots, total, edl["end_card_start"], run_files, run_trans, run_durs
 
 
+def caption_settings(style: dict) -> dict:
+    return {"style": style.get("caption_style") or "pop", "position": style.get("caption_position") or "lower",
+            "size": float(style.get("caption_size") or 1.0), "case": style.get("caption_case") or "",
+            "words": int(style.get("caption_words") or 3)}
+
+
+def set_frame(aspect: str | None) -> tuple[int, int]:
+    """Point every pipeline at the output frame for this aspect ratio (renders run one at a time)."""
+    global W, H
+    W, H = config.ASPECTS.get(aspect or "9:16", config.ASPECTS["9:16"])
+    config.WIDTH, config.HEIGHT = W, H
+    ugc.W, ugc.H = W, H
+    return W, H
+
+
 def render(project_dir: Path, settings: dict | None = None, log=print, progress=None,
            engine_name: str | None = None) -> dict:
+    proj = project.load(project_dir)
+    set_frame((proj.get("style") or {}).get("aspect"))
+    try:
+        return _render(project_dir, settings, log, progress, engine_name)
+    finally:
+        set_frame("9:16")
+
+
+def _render(project_dir: Path, settings: dict | None = None, log=print, progress=None,
+            engine_name: str | None = None) -> dict:
     t0 = time.time()
     settings = settings or config.load_settings()
     proj = project.load(project_dir)
@@ -283,7 +308,7 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
     # animated, UGC and avatar videos render at 60 fps in High quality (smoother motion and push-ins);
     # the screen-demo cut stays on its 30 fps grid
     high = proj.get("style", {}).get("quality", "high") == "high"
-    out_fps = 60 if (mode in ("animated", "ugc", "photo_avatar") and high) else FPS
+    out_fps = 60 if (mode in ("animated", "ugc", "photo_avatar", "people") and high) else FPS
     assets = proj.get("assets", [])
     avatar_videos: dict = {}
     end_card_on = proj.get("style", {}).get("end_card", True)
@@ -332,6 +357,18 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
                 log(f"whisper matched only {matched:.0%}; keeping the estimated timing")
     if mode == "ugc":
         pass
+    elif mode == "people":
+        # 2 (real people). Licensed stock clips of real humans under the narration, cut like UGC.
+        u = _people(proj, beats, nar, words, project_dir, build, end_card_on, log, progress, out_fps)
+        if u.total < config.MIN_SECONDS - 0.05:
+            raise RenderError(f"With the pauses trimmed the video runs {u.total:.1f}s. Add a sentence or two.")
+        words = u.words
+        total, end_card_start = u.total, u.end_card_start
+        run_files, run_trans, run_durs = [u.video], [None], [total]
+        shots = u.shots
+        caption_beats = beats
+        nar = tts.Narration(wav=str(u.voice), duration=u.end_card_start or u.total, speed=nar.speed, voice=nar.voice,
+                            engine=nar.engine, beats=u.beat_times, words=u.words)
     elif mode == "photo_avatar":
         # 2 (photo avatar). The local avatar model lip-syncs the photo to the narration; the
         # result is then cut exactly like UGC footage (layouts, punch-ins, captions).
@@ -387,6 +424,7 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
         ai_voice_label="AI voice" if proj.get("style", {}).get("ai_voice_label") else "",
         show_captions=not (mode == "animated" and animate.TEMPLATES.get(proj.get("template"), {}).get("own_captions")),
         caption_font=proj.get("style", {}).get("caption_font"),
+        cap=caption_settings(proj.get("style", {})),
         headline_font=proj.get("style", {}).get("headline_font") or proj.get("style", {}).get("caption_font"),
     )
     (build / "captions.ass").write_text(ass, encoding="utf-8")
@@ -428,7 +466,12 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
         cur = f"x{i}"
         offset += run_durs[i]
     # (no film grain: per-frame noise made files ~30x larger and platforms recompress it into mush)
-    parts.append(f"[{cur}]format=yuv420p,ass=captions.ass:fontsdir=fonts,format=yuv420p[vout]")
+    # cinematic finishing (grade and film effects) under the captions, so text stays clean
+    cuts = [bt["start"] for bt in nar.beats[1:] if bt.get("start", 0) > 0.3]
+    look_inputs, look_parts = look.chain(style, W, H, total, cuts, build, inputs.count("-i"), cur, "graded")
+    inputs += look_inputs
+    parts += look_parts
+    parts.append("[graded]ass=captions.ass:fontsdir=fonts,format=yuv420p[vout]")
     parts.append(_audio_graph(len(run_files), use_music, total, music_db, has_sfx=use_sfx))
     out_dir = project_dir / "out"
     out_dir.mkdir(exist_ok=True)
@@ -461,7 +504,7 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
         "engine": nar.engine,
         "mode": mode,
         "template": proj.get("template") if mode == "animated" else None,
-        "jump_cuts": len(u.segments) if mode in ("ugc", "photo_avatar") else None,
+        "jump_cuts": len(u.segments) if mode in ("ugc", "photo_avatar", "people") else None,
         "caption_timing": "whisper" if (mode == "ugc" or words is not tts_words) else "estimated",
         "fps": out_fps,
         "shots": len(shots),
@@ -482,6 +525,41 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
     progress(1.0, "Done")
     log(f"wrote {out_path} ({info['duration']:.1f}s, {info['width']}x{info['height']}) in {report['render_seconds']}s")
     return report
+
+
+def _people(proj, beats, nar, words, project_dir, build, end_card_on, log, progress, fps=FPS):
+    clips = [a for a in proj.get("assets", []) if a.get("role") == "broll" and a["type"] == "video"
+             and a.get("rights_confirmed")]
+    screens = {a["id"] for a in proj.get("assets", []) if a.get("role") in ("screen", "image") and a.get("rights_confirmed")}
+    if not clips:
+        raise RenderError("Add real-people clips on the Footage tab (Find real people), or upload your own b-roll.")
+    progress(0.15, "Cutting the real-people b-roll")
+    # the narration as a silent "track" so the UGC cutter can cut the voice with the picture
+    voice_clip = build / "people_voice.mp4"
+    media.run(["-f", "lavfi", "-i", f"color=c=black:s=320x568:r={fps}", "-i", str(nar.wav), "-shortest",
+               "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-b:a", "256k", str(voice_clip)], log=log)
+    info = media.probe(voice_clip)
+    voice = {"id": "_voice", "file": str(voice_clip), "type": "video", "role": "creator", "label": "Narration",
+             "width": info["width"], "height": info["height"], "duration": info["duration"], "rights_confirmed": True}
+    p2 = {**proj, "assets": [*proj.get("assets", []), voice]}
+    times = {bt["id"]: bt for bt in nar.beats}
+    ubeats, k = [], 0
+    for b in beats:
+        bt = times.get(b["id"])
+        if not bt:
+            continue
+        vis = dict(b.get("visual") or {})
+        layout = vis.get("layout") if vis.get("layout") in ("broll", "screen") else "broll"
+        asset = vis.get("asset")
+        if layout == "screen" and asset not in screens:
+            layout = "broll"
+        if layout == "broll" and asset not in {a["id"] for a in clips}:
+            asset = clips[k % len(clips)]["id"]
+            k += 1
+        ws = [{"text": w.text, "start": w.start, "end": w.end} for w in words if w.beat == b["id"]]
+        ubeats.append({**b, "words": ws, "source": {"asset": "_voice", "start": bt["speech_start"], "end": bt["speech_end"]},
+                       "visual": {**vis, "layout": layout, "asset": asset}})
+    return ugc.build(p2, ubeats, project_dir, build, fps, end_card_on, timeline.END_CARD_SECONDS, log, progress, gap=None)
 
 
 def _photo_avatar(proj, beats, nar, words, settings, project_dir, build, end_card_on, log, progress, fps=FPS):
@@ -543,6 +621,9 @@ def disclosure_text(proj: dict, nar, settings: dict, avatar_videos: dict) -> dic
         bits.append("The on-screen presenter is AI-generated.")
     if any(a.get("genuine") for a in proj.get("assets", [])):
         bits.append("Product footage is a real screen recording of Insidir.")
+    providers = sorted({a["stock"]["provider"].title() for a in proj.get("assets", []) if a.get("stock")})
+    if providers:
+        bits.append(f"People shown are licensed stock footage ({', '.join(providers)}), not customers.")
     bits.append("Research tool. Not investment advice.")
     short = " ".join(bits)
     post = (

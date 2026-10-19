@@ -13,7 +13,7 @@ from pathlib import Path
 from . import config, media
 
 # creator: a real person talking to camera (UGC); its own audio is the voice-over
-ROLES = ("screen", "image", "presenter", "creator", "music")
+ROLES = ("screen", "image", "presenter", "creator", "broll", "music")
 
 # the web server is threaded: serialise read-modify-write of project.json
 LOCK = threading.RLock()
@@ -57,7 +57,12 @@ def new(name: str, brief: dict | None = None) -> dict:
                   "captions": "auto", "quality": "high", "ai_voice_label": False,
                   "sfx": True, "music_bed": True,
                   # fonts.FONTS ids; an empty headline font keeps each template's own face
-                  "caption_font": settings.get("caption_font", "inter"), "headline_font": ""},
+                  "caption_font": settings.get("caption_font", "inter"), "headline_font": "",
+                  # frame and cinematic look (see look.py and the Style tab)
+                  "aspect": "9:16", "preset": "", "grade": "none", "effects": [], "look_strength": "normal",
+                  "camera": "dynamic", "camera_strength": 1.0,
+                  "caption_style": "pop", "caption_position": "lower", "caption_size": 1.0,
+                  "caption_case": "upper", "caption_words": 3},
         "presenter": {"use_avatar": False},
         "music": {"enabled": True, "volume_db": -20},
         "assets": [],

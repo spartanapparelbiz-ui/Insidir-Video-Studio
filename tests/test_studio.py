@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT))
 TMP = Path(tempfile.mkdtemp(prefix="ivs-test-"))
 os.environ["INSIDIR_STUDIO_HOME"] = str(TMP)
 
-from insidir_studio import avatars, fonts  # noqa: E402
+from insidir_studio import avatars, fonts, look, stock  # noqa: E402
 from insidir_studio import (animate, avatar, captions, sound, compliance, config, media, project, render,  # noqa: E402
                             script_writer, timeline, tts, ugc, whisper_align)
 
@@ -301,6 +301,54 @@ class AvatarLibraryTests(unittest.TestCase):
         self.assertEqual(tts.gender_of("studio_calm"), "woman")
 
 
+class StockTests(unittest.TestCase):
+    PEXELS = {"videos": [{"id": 1, "url": "https://www.pexels.com/video/1/", "image": "https://images.pexels.com/1.jpg",
+                          "duration": 12, "user": {"name": "Ana", "url": "https://www.pexels.com/@ana"},
+                          "video_files": [
+                              {"file_type": "video/mp4", "width": 540, "height": 960, "link": "https://videos.pexels.com/s.mp4"},
+                              {"file_type": "video/mp4", "width": 1080, "height": 1920, "link": "https://videos.pexels.com/hd.mp4"},
+                              {"file_type": "video/mp4", "width": 2160, "height": 3840, "link": "https://videos.pexels.com/4k.mp4"}]}]}
+    PIXABAY = {"hits": [{"id": 7, "pageURL": "https://pixabay.com/videos/id-7/", "duration": 9, "user": "Ben",
+                         "videos": {"large": {"url": "https://cdn.pixabay.com/l.mp4", "width": 1920, "height": 1080, "thumbnail": "https://cdn.pixabay.com/t.jpg"},
+                                    "small": {"url": "https://cdn.pixabay.com/s.mp4", "width": 960, "height": 540}}}]}
+
+    def test_parse_picks_the_smallest_full_hd_file(self):
+        r = stock.parse_pexels(self.PEXELS)[0]
+        self.assertEqual((r["download"], r["author"], r["provider"]), ("https://videos.pexels.com/hd.mp4", "Ana", "pexels"))
+        r = stock.parse_pixabay(self.PIXABAY)[0]
+        self.assertEqual((r["download"], r["thumb"], r["provider"]), ("https://cdn.pixabay.com/l.mp4", "https://cdn.pixabay.com/t.jpg", "pixabay"))
+
+    def test_search_needs_a_free_key_and_downloads_only_from_providers(self):
+        with self.assertRaises(stock.StockError):
+            stock.search("people", settings={"stock": {}})
+        with self.assertRaises(stock.StockError):
+            stock.download(TMP, {"provider": "pexels", "id": "1", "download": "https://evil.example.com/x.mp4"})
+
+
+class LookTests(unittest.TestCase):
+    @unittest.skipUnless(config.find_tool("ffmpeg"), "FFmpeg not installed")
+    def test_every_grade_and_effect_is_a_valid_graph(self):
+        src = TMP / "look_src.png"
+        media.run(["-f", "lavfi", "-i", "testsrc2=s=640x360", "-frames:v", "1", str(src)])
+        for g in look.GRADES:
+            look.preview(src, TMP / "looks" / f"{g}.jpg", {"grade": g, "effects": [e for e in look.EFFECTS if e != "leaks"]})
+        for pid, pr in look.PRESETS.items():
+            self.assertIn(pr["grade"], look.GRADES, pid)
+            self.assertTrue(set(pr["effects"]) <= set(look.EFFECTS), pid)
+            self.assertIn(pr["caption_style"], captions.CAPTION_STYLES, pid)
+
+    def test_caption_styles_and_positions(self):
+        w = [tts.Word(x, i * 0.3, i * 0.3 + 0.25, "b1") for i, x in enumerate("one two three four five".split())]
+        bt = [{"id": "b1", "start": 0, "speech_start": 0, "speech_end": 1.5, "end": 1.6}]
+        for style in captions.CAPTION_STYLES:
+            ass = captions.build_ass(w, [], [{"id": "b1", "text": "x"}], bt, 2.0, "#FF0000", "x", None, None,
+                                     cap={"style": style, "position": "upper", "words": 1, "case": "as_spoken"})
+            caps = [l for l in ass.splitlines() if ",Caption," in l]
+            self.assertEqual(len(caps), 5, style)                    # one word at a time
+            self.assertIn(f"\\pos({config.WIDTH // 2},{int(config.HEIGHT * 0.30)})", caps[0])
+            self.assertIn("one", caps[0])                            # as spoken, not upper case
+
+
 class FontTests(unittest.TestCase):
     def test_catalogue_files_exist_and_include_insidir_fonts(self):
         self.assertEqual(fonts.files_exist(), [])
@@ -493,6 +541,29 @@ class RenderTests(unittest.TestCase):
         self.assertTrue(report["disclosure"]["ai_presenter"])
         self.assertTrue(report["disclosure"]["ai_voice"])
         self.assertIn("AI-generated presenter", (d / "build" / "captions.ass").read_text(encoding="utf-8"))
+
+    def test_landscape_people_render_with_a_look(self):
+        proj = project.new("People wide", {"mode": "people"})
+        d = project.project_dir(proj["id"])
+        clip = TMP / "src" / "people.mp4"
+        clip.parent.mkdir(exist_ok=True)
+        media.run(["-f", "lavfi", "-i", "testsrc2=s=1080x1920:r=30:d=8", "-pix_fmt", "yuv420p", str(clip)])
+        tmp = TMP / "up_people.mp4"
+        shutil.copyfile(clip, tmp)
+        project.add_asset(d, "people.mp4", tmp, "broll")
+        proj = project.load(d)
+        for a in proj["assets"]:
+            a.update(rights_confirmed=True, stock={"provider": "pexels", "id": "1"})
+        proj["style"].update({"aspect": "16:9", "quality": "standard", "captions": "estimate", "grade": "cinematic",
+                              "effects": ["letterbox", "vignette", "bloom", "chroma", "leaks"], "camera": "energetic"})
+        proj["script"] = script_writer.template_script(proj, FACTS, 0)
+        self.assertTrue(all(b["visual"]["layout"] == "broll" for b in proj["script"]["beats"]))
+        project.save(d, proj)
+        report = render.render(d, log=lambda m: None, engine_name="test-tone")
+        info = media.probe(d / "out" / report["file"])
+        self.assertEqual((info["width"], info["height"]), (1920, 1080))
+        self.assertIn("licensed stock footage (Pexels)", report["disclosure"]["short"])
+        self.assertEqual((config.WIDTH, config.HEIGHT), (1080, 1920))   # the frame is restored after a render
 
     def test_guard_blocks_render(self):
         proj = project.new("Blocked")

@@ -235,6 +235,8 @@ def build_job(proj: dict, beats: list[dict], spans: list[tuple[float, float]], b
         "frame_format": TEMPLATES.get(template, {}).get("frame_format", "png"),
     }
     st = proj.get("style") or {}
+    data["captions"] = {"position": st.get("caption_position") or "lower", "size": float(st.get("caption_size") or 1.0),
+                        "case": st.get("caption_case") or "upper", "words": int(st.get("caption_words") or 3)}
     cap = fonts.get(st.get("caption_font"))
     head = fonts.get(st.get("headline_font"), None)  # None: each template's own headline face
     data["fonts"] = {

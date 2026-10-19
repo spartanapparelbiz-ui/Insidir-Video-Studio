@@ -1,5 +1,6 @@
 import {makeScene2D} from '@motion-canvas/2d';
 import {getData} from '../lib/data';
+import {frame} from '../lib/frame';
 import {dotExplainer} from '../templates/dotExplainer';
 import {mythFact} from '../templates/mythFact';
 import {steps} from '../templates/steps';
@@ -22,6 +23,8 @@ export const TEMPLATES = {
 
 export default makeScene2D(function* (view) {
   const data = getData();
+  // fit the 1080x1920 design into the chosen frame (1 for 9:16)
+  view.scale(frame().scale);
   const run = (TEMPLATES as any)[data.template] ?? dotExplainer;
   yield* run(view, data);
 });

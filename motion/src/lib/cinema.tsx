@@ -16,12 +16,14 @@ import {
   type ThreadGenerator,
   waitFor,
 } from '@motion-canvas/core';
-import type {RenderData, Word} from './data';
+import {getData, type RenderData, type Word} from './data';
 import {until} from './timing';
 import {F} from './fonts';
+import {frame} from './frame';
 
-export const W = 1080;
-export const H = 1920;
+// the visible area in design units (1080x1920 for 9:16, wider/shorter for other frames)
+export const W = frame().vw;
+export const H = frame().vh;
 
 function canvas(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void): string {
   const c = document.createElement('canvas');
@@ -132,14 +134,14 @@ export function* flashHit(s: Stage, amount = 0.32): ThreadGenerator {
 
 // ---------------------------------------------------------------- kinetic captions
 
-function groups(words: Word[]): Word[][] {
+function groups(words: Word[], maxWords = 3): Word[][] {
   const out: Word[][] = [];
   let cur: Word[] = [];
   for (const w of words) {
     if (cur.length) {
       const prev = cur[cur.length - 1];
       const chars = cur.reduce((n, x) => n + x.text.length + 1, 0) + w.text.length;
-      if (cur.length >= 3 || chars > 16 || w.beat !== prev.beat || w.start - prev.end > 0.35 || /[.!?,;:]$/.test(prev.text)) {
+      if (cur.length >= maxWords || chars > 6 + maxWords * 5 || w.beat !== prev.beat || w.start - prev.end > 0.35 || /[.!?,;:]$/.test(prev.text)) {
         out.push(cur);
         cur = [];
       }
@@ -150,11 +152,20 @@ function groups(words: Word[]): Word[][] {
   return out;
 }
 
-const clean = (t: string) => t.replace(/^["“]|["”,;:]+$/g, '').toUpperCase();
+const upperCase = () => (getData().captions?.case ?? 'upper') === 'upper';
+const clean = (t: string) => {
+  const c = t.replace(/^["“]|["”,;:]+$/g, '');
+  return upperCase() ? c.toUpperCase() : c;
+};
+// the Style tab's caption position, in design units (each template passes its usual spot as `y`)
+const CAP_Y: Record<string, number> = {upper: -380, middle: 0, bottom: 640};
 
 export function* kineticCaptions(layer: Node, data: RenderData, keywords: Set<string>, y = 420): ThreadGenerator {
   const end = data.end_card_start ?? data.total;
-  const gs = groups(data.words);
+  const cfg = data.captions;
+  if (cfg && cfg.position !== 'lower') y = CAP_Y[cfg.position] ?? y;
+  const k = cfg?.size ?? 1;
+  const gs = groups(data.words, cfg?.words ?? 3);
   for (let gi = 0; gi < gs.length; gi++) {
     const g = gs[gi];
     if (g[0].start >= end) break;
@@ -171,7 +182,7 @@ export function* kineticCaptions(layer: Node, data: RenderData, keywords: Set<st
               text={clean(w.text)}
               fontFamily={F.cap}
               fontWeight={800}
-              fontSize={key ? 112 : 100}
+              fontSize={(key ? 112 : 100) * k}
               letterSpacing={-2}
               fill="#8f8a82"
               stroke="#050505"

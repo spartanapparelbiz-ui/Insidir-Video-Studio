@@ -26,11 +26,10 @@ from . import config, media, tts, whisper_align
 W, H = config.WIDTH, config.HEIGHT
 SR = 48000
 FILLERS = {"um", "uh", "er", "ah", "erm", "hmm", "mm", "uhm"}
-LAYOUTS = ["face", "split", "bubble", "screen"]
+LAYOUTS = ["face", "split", "bubble", "screen", "broll"]
 GAP = 0.30        # silences longer than this are cut out
 PAD_IN = 0.06     # keep a breath before the first word
 PAD_OUT = 0.10    # and a little after the last
-BUBBLE = 456      # face-cam circle size (px)
 PUSH = 0.035      # each face shot pushes in this much, eased, for a smooth handheld-camera feel
 
 
@@ -157,6 +156,8 @@ class Seg:
     out_start: float = 0.0
     frames: int = 0
     screen_start: float = 0.0
+    move: str = "push_in"
+    strength: float = 1.0
 
 
 @dataclass
@@ -171,8 +172,35 @@ class Built:
     segments: list = field(default_factory=list)
 
 
-def plan(beats: list[dict], fps: int, gap: float | None = GAP) -> list[Seg]:
-    """gap: pauses longer than this become jump cuts (None keeps each sentence whole)."""
+CAMERA_STYLES = {
+    "dynamic": "Dynamic: crash zoom on the hook, then push-ins, drifts and pull-outs",
+    "calm": "Calm: slow push-ins only",
+    "energetic": "Energetic: a crash zoom on every new sentence, impact shakes",
+    "handheld": "Handheld: everything floats like a phone held in the hand",
+    "static": "Locked off: no camera movement",
+}
+
+
+def auto_move(style: str, i: int, first_of_beat: bool, layout: str) -> str:
+    if style == "static":
+        return "static"
+    if style == "calm":
+        return "push_in"
+    if style == "handheld":
+        return "drift"
+    if style == "energetic":
+        return "crash_zoom" if first_of_beat else ("shake" if i % 5 == 4 else "push_in")
+    if i == 0:
+        return "crash_zoom"
+    if layout in ("screen", "bubble"):
+        return "push_in"
+    return ["push_in", "drift", "pull_out", "push_in"][i % 4]
+
+
+def plan(beats: list[dict], fps: int, gap: float | None = GAP, camera_style: str = "dynamic",
+         strength: float = 1.0) -> list[Seg]:
+    """gap: pauses longer than this become jump cuts (None keeps each sentence whole).
+    camera_style picks a move per shot unless the beat sets visual.move itself."""
     segs: list[Seg] = []
     for b in beats:
         if not b.get("keep", True):
@@ -205,7 +233,10 @@ def plan(beats: list[dict], fps: int, gap: float | None = GAP) -> list[Seg]:
                 s = segs[-1].end
             if e - s < 0.12:
                 continue
-            segs.append(Seg(b["id"], src, s, e, layout, screen, vis.get("focus") or [0.5, 0.5]))
+            first = not segs or segs[-1].beat != b["id"]
+            move = vis.get("move") if vis.get("move") in MOVES else auto_move(camera_style, len(segs), first, layout)
+            segs.append(Seg(b["id"], src, s, e, layout, screen, vis.get("focus") or [0.5, 0.5],
+                            move=move, strength=strength))
     # jump cuts: alternate the framing on consecutive face shots
     face_n = 0
     for sg in segs:
@@ -245,20 +276,79 @@ def _screen_input(a: dict, project_dir: Path, start: float, seconds: float) -> l
     return ["-loop", "1", "-framerate", "30", "-t", f"{seconds + 0.5:.3f}", "-i", path]
 
 
-def _card(idx: int, a: dict, focus, fps: int, seconds: float, cy: int = 860, max_w: int = 1000, max_h: int = 1200) -> str:
-    """Screen asset as a card on its own blurred backdrop, slowly pushing in toward the focus."""
+# Camera moves (Higgsfield-style presets, done with FFmpeg's zoompan on a 2x supersampled frame
+# so every move travels in half-pixel steps). `e` is an eased 0->1 progress over the shot.
+MOVES = {
+    "push_in": "Slow push-in",
+    "pull_out": "Slow pull-out",
+    "crash_zoom": "Crash zoom",
+    "pan_left": "Pan left",
+    "pan_right": "Pan right",
+    "tilt_up": "Tilt up",
+    "drift": "Handheld drift",
+    "shake": "Impact shake",
+    "static": "Locked off",
+}
+
+
+def camera(move: str, frames: int, fps: int, fy: float = 0.5, strength: float = 1.0) -> tuple[str, str, str]:
+    """zoompan z, x, y expressions for a camera move."""
+    n = max(1, frames - 1)
+    e = f"((1-cos(PI*min(on/{n}\\,1)))/2)"
+    cx, cy = "(iw-iw/zoom)/2", f"(ih-ih/zoom)*{fy:.3f}"
+    k = strength
+    if move == "pull_out":
+        return f"{1 + 0.06 * k:.4f}-{0.06 * k:.4f}*{e}", cx, cy
+    if move == "crash_zoom":
+        q = max(1, int(fps * 0.28))
+        return f"1+{0.2 * k:.4f}*(1-pow(1-min(on/{q}\\,1)\\,3))+{0.02 * k:.4f}*{e}", cx, cy
+    if move in ("pan_left", "pan_right"):
+        a, b = (0.85, 0.15) if move == "pan_left" else (0.15, 0.85)
+        return f"{1 + 0.14 * k:.4f}", f"(iw-iw/zoom)*({a}+({b - a})*{e})", cy
+    if move == "tilt_up":
+        return f"{1 + 0.14 * k:.4f}", cx, f"(ih-ih/zoom)*(0.85-0.7*{e})"
+    if move == "drift":
+        return (f"{1 + 0.07 * k:.4f}+{0.015 * k:.4f}*sin(on/{fps}*0.9)",
+                f"(iw-iw/zoom)*(0.5+0.18*sin(on/{fps}*0.7))", f"(ih-ih/zoom)*({fy:.3f}+0.12*sin(on/{fps}*0.53))")
+    if move == "shake":
+        decay = f"exp(-on/{fps * 0.35:.2f})"
+        return (f"{1 + 0.08 * k:.4f}", f"(iw-iw/zoom)*(0.5+0.35*{decay}*sin(on*2.1))",
+                f"(ih-ih/zoom)*({fy:.3f}+0.3*{decay}*sin(on*2.9+1))")
+    if move == "static":
+        return "1", cx, cy
+    return f"1+{PUSH * k:.4f}*{e}", cx, cy   # push_in (default)
+
+
+def _zp(move: str, frames: int, fps: int, w: int, h: int, fy: float, strength: float) -> str:
+    z, x, y = camera(move, frames, fps, fy, strength)
+    return f"zoompan=z='{z}':x='{x}':y='{y}':d=1:s={w}x{h}:fps={fps}"
+
+
+def bubble_size() -> int:
+    return _even(min(W, H) * 0.42)
+
+
+def _card(idx: int, a: dict, focus, fps: int, seconds: float, cy: int | None = None, max_w: float | None = None,
+          max_h: float | None = None, move: str = "push_in", strength: float = 1.0) -> str:
+    """Screen asset as a card on its own blurred backdrop, with a camera move toward the focus."""
+    cy = int(H * 0.45) if cy is None else cy
+    max_w = W * (0.93 if W < H else 0.62) if max_w is None else max_w
+    max_h = H * (0.62 if W < H else 0.84) if max_h is None else max_h
     sw, sh = int(a["width"]), int(a["height"])
     k = min(max_w / sw, max_h / sh)
     fw, fh = _even(sw * k), _even(sh * k)
     n = max(1, int(seconds * fps))
     fx, fy = float(focus[0]), float(focus[1])
     tp = f",tpad=stop_mode=clone:stop_duration={seconds + 1:.2f}" if a["type"] == "video" else ""
+    z, x, y = camera(move, n, fps, fy, strength * 1.2)
+    x = x.replace("*0.5+", f"*{fx:.3f}+").replace("(iw-iw/zoom)/2", f"(iw-iw/zoom)*{fx:.3f}")
+    bw, bh = _even(W / 4), _even(H / 4)
     return (
         f"[{idx}:v]fps={fps},setsar=1{tp},split=2[sa{idx}][sb{idx}];"
-        f"[sa{idx}]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=14:2,"
+        f"[sa{idx}]scale={bw}:{bh}:force_original_aspect_ratio=increase,crop={bw}:{bh},boxblur=14:2,"
         f"scale={W}:{H},eq=brightness=-0.28:saturation=0.7[bg{idx}];"
         f"[sb{idx}]scale={fw * 2}:{fh * 2}:flags=lanczos,"
-        f"zoompan=z='1+0.07*on/{n}':x='(iw-iw/zoom)*{fx}':y='(ih-ih/zoom)*{fy}':d=1:s={fw}x{fh}:fps={fps}[fg{idx}];"
+        f"zoompan=z='{z}':x='{x}':y='{y}':d=1:s={fw}x{fh}:fps={fps}[fg{idx}];"
         f"[bg{idx}][fg{idx}]overlay=x=(W-w)/2:y={cy}-h/2:shortest=1[card{idx}]"
     )
 
@@ -270,40 +360,64 @@ def render_segment(sg: Seg, creator: dict, screen: dict | None, project_dir: Pat
     cw, ch = int(creator["width"]), int(creator["height"])
     inputs = ["-ss", f"{sg.start:.3f}", "-i", str(project_dir / creator["file"])]
     head = f"[0:v]fps={fps},setsar=1,tpad=stop_mode=clone:stop_duration=1"
-    if sg.layout == "face" or screen is None:
-        # a slow eased push-in (supersampled 2x so the zoom moves in half-pixel steps, not jitter)
-        x, y, w, h = cover(cw, ch, W / H, face_focus, sg.zoom)
-        n = max(1, sg.frames - 1)
-        fy = float(face_focus[1])
-        graph = (f"{head},crop={w}:{h}:{x}:{y},scale={W * 2}:{H * 2}:flags=bicubic,"
-                 f"zoompan=z='1+{PUSH}*(1-cos(PI*min(on/{n}\,1)))/2':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)*{fy:.3f}'"
-                 f":d=1:s={W}x{H}:fps={fps}[v]")
+    fy = float(face_focus[1])
+    landscape = W > H
+    if sg.layout == "broll" and screen is not None:
+        # real-people b-roll full frame; the voice carries on underneath
+        inputs = _screen_input(screen, project_dir, sg.screen_start, seconds)
+        sx, sy, sw_, sh_ = cover(int(screen["width"]), int(screen["height"]), W / H, sg.focus, 1.0)
+        tp = ",tpad=stop_mode=clone:stop_duration=1" if screen["type"] == "video" else ""
+        graph = (f"[0:v]fps={fps},setsar=1{tp},crop={sw_}:{sh_}:{sx}:{sy},scale={W * 2}:{H * 2}:flags=bicubic,"
+                 f"{_zp(sg.move, sg.frames, fps, W, H, float(sg.focus[1]), sg.strength)}[v]")
+    elif sg.layout == "face" or screen is None:
+        if cw / ch < (W / H) * 0.62:
+            # a vertical selfie in a wide frame: sharp face over a blurred fill, like a news cut-in
+            fh_ = H
+            fw_ = _even(H * cw / ch)
+            bw, bh = _even(W / 4), _even(H / 4)
+            graph = (f"{head},split=2[a][b];"
+                     f"[a]scale={bw}:{bh}:force_original_aspect_ratio=increase,crop={bw}:{bh},boxblur=16:2,"
+                     f"scale={W}:{H},eq=brightness=-0.22:saturation=0.8[bg];"
+                     f"[b]scale={fw_ * 2}:{fh_ * 2}:flags=bicubic,{_zp(sg.move, sg.frames, fps, fw_, fh_, fy, sg.strength)}[fg];"
+                     f"[bg][fg]overlay=x=(W-w)/2:y=0:shortest=1[v]")
+        else:
+            x, y, w, h = cover(cw, ch, W / H, face_focus, sg.zoom)
+            graph = (f"{head},crop={w}:{h}:{x}:{y},scale={W * 2}:{H * 2}:flags=bicubic,"
+                     f"{_zp(sg.move, sg.frames, fps, W, H, fy, sg.strength)}[v]")
     elif sg.layout == "split":
         inputs += _screen_input(screen, project_dir, sg.screen_start, seconds)
-        x, y, w, h = cover(cw, ch, W / (H / 2), face_focus, sg.zoom)
-        sx, sy, sw_, sh_ = cover(int(screen["width"]), int(screen["height"]), W / (H / 2), sg.focus, 1.0)
+        # vertical: app on top, face below; landscape: app left, face right
+        pw, ph = (W // 2, H) if landscape else (W, H // 2)
+        pw, ph = _even(pw), _even(ph)
+        x, y, w, h = cover(cw, ch, pw / ph, face_focus, sg.zoom)
+        sx, sy, sw_, sh_ = cover(int(screen["width"]), int(screen["height"]), pw / ph, sg.focus, 1.0)
         tp = ",tpad=stop_mode=clone:stop_duration=1" if screen["type"] == "video" else ""
+        stack = (f"[top][bot]hstack=inputs=2,drawbox=x={pw - 3}:y=0:w=6:h={H}:color=white@0.9:t=fill[v]" if landscape
+                 else f"[top][bot]vstack=inputs=2,drawbox=x=0:y={ph - 3}:w={W}:h=6:color=white@0.9:t=fill[v]")
         graph = (
-            f"[1:v]fps={fps},setsar=1{tp},crop={sw_}:{sh_}:{sx}:{sy},scale={W}:{H // 2}:flags=lanczos[top];"
-            f"{head},crop={w}:{h}:{x}:{y},scale={W}:{H // 2}:flags=lanczos[bot];"
-            f"[top][bot]vstack=inputs=2,drawbox=x=0:y={H // 2 - 3}:w={W}:h=6:color=white@0.9:t=fill[v]"
+            f"[1:v]fps={fps},setsar=1{tp},crop={sw_}:{sh_}:{sx}:{sy},scale={pw}:{ph}:flags=lanczos[top];"
+            f"{head},crop={w}:{h}:{x}:{y},scale={pw * 2}:{ph * 2}:flags=bicubic,"
+            f"{_zp(sg.move, sg.frames, fps, pw, ph, fy, sg.strength * 0.7)}[bot];" + stack
         )
     elif sg.layout == "bubble":
         inputs += _screen_input(screen, project_dir, sg.screen_start, seconds)
-        ring = _ring_png(build / f"ring_{BUBBLE + 16}.png", BUBBLE + 16)
+        bs = bubble_size()
+        ring = _ring_png(build / f"ring_{bs + 16}.png", bs + 16)
         inputs += ["-loop", "1", "-i", str(ring)]
         x, y, w, h = cover(cw, ch, 1.0, face_focus, 1.25)
-        r = BUBBLE / 2
+        r = bs / 2
+        m = int(min(W, H) * 0.044)
+        top = int(H * 0.09)
         graph = (
-            _card(1, screen, sg.focus, fps, seconds, cy=1000) + ";"
-            f"{head},crop={w}:{h}:{x}:{y},scale={BUBBLE}:{BUBBLE}:flags=lanczos,format=rgba,"
+            _card(1, screen, sg.focus, fps, seconds, cy=int(H * 0.52), move=sg.move, strength=sg.strength * 0.6) + ";"
+            f"{head},crop={w}:{h}:{x}:{y},scale={bs}:{bs}:flags=lanczos,format=rgba,"
             f"geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lte(hypot(X-{r}+0.5,Y-{r}+0.5),{r - 1}),255,0)'[face];"
-            f"[card1][2:v]overlay=x={W - BUBBLE - 16 - 48}:y=170:shortest=1[c2];"
-            f"[c2][face]overlay=x={W - BUBBLE - 8 - 48}:y=178:shortest=1[v]"
+            f"[card1][2:v]overlay=x={W - bs - 16 - m}:y={top - 8}:shortest=1[c2];"
+            f"[c2][face]overlay=x={W - bs - 8 - m}:y={top}:shortest=1[v]"
         )
     else:  # screen only, the voice carries on
         inputs += _screen_input(screen, project_dir, sg.screen_start, seconds)
-        graph = _card(1, screen, sg.focus, fps, seconds) + ";[card1]null[v]"
+        graph = _card(1, screen, sg.focus, fps, seconds, move=sg.move, strength=sg.strength) + ";[card1]null[v]"
     media.run([*inputs, "-filter_complex", graph, "-map", "[v]", "-frames:v", str(sg.frames), "-r", str(fps),
                "-c:v", "libx264", "-preset", "veryfast", "-crf", "14", "-pix_fmt", "yuv420p", "-an", str(out)],
               log=log)
@@ -321,10 +435,22 @@ def _audio(path: Path, cache: Path) -> np.ndarray:
 
 def build(proj: dict, beats: list[dict], project_dir: Path, build_dir: Path, fps: int, end_card_on: bool,
           end_card_seconds: float, log=None, progress=None, gap: float | None = GAP) -> Built:
-    segs = plan(beats, fps, gap)
+    look = proj.get("style") or {}
+    if not look.get("preset"):
+        # nothing chosen yet: real people get the natural, realistic camera (a hand-held phone)
+        look = {**look, "camera": "handheld", "camera_strength": 0.5}
+    segs = plan(beats, fps, gap, look.get("camera") or "dynamic", float(look.get("camera_strength") or 1.0))
     if not segs:
         raise RuntimeError("Keep at least one sentence with speech in it.")
     by_id = {a["id"]: a for a in proj.get("assets", [])}
+    # start screen recordings where they show something, not on a blank loading frame
+    offsets = {}
+    for sg in segs:
+        a = by_id.get(sg.screen) if sg.screen else None
+        if a and a["type"] == "video":
+            if a["id"] not in offsets:
+                offsets[a["id"]] = media.content_start(project_dir / a["file"], build_dir / "thumbs")
+            sg.screen_start += offsets[a["id"]]
     seg_dir = build_dir / "ugc"
     if seg_dir.exists():
         shutil.rmtree(seg_dir)

@@ -23,6 +23,11 @@ DEFAULT_FACTS = REPO_DIR / "facts" / "insidir_facts.json"
 
 WIDTH = 1080
 HEIGHT = 1920
+# Output frame per aspect ratio: the short side is always 1080, so caption and title sizes
+# read the same in every shape.
+ASPECTS = {"9:16": (1080, 1920), "4:5": (1080, 1350), "1:1": (1080, 1080), "16:9": (1920, 1080)}
+ASPECT_NAMES = {"9:16": "9:16 Vertical (TikTok, Reels, Shorts)", "4:5": "4:5 Portrait (Instagram, Facebook feed)",
+                "1:1": "1:1 Square", "16:9": "16:9 Landscape (YouTube, X, LinkedIn)"}
 FPS = 30
 MIN_SECONDS = 20.0
 MAX_SECONDS = 35.0
@@ -53,6 +58,8 @@ DEFAULT_SETTINGS = {
         "commercial_use": True,
         "min_vram_gb": 8,
     },
+    # free API keys for real-people stock video (no card or plan needed)
+    "stock": {"pexels_key": "", "pixabay_key": ""},
 }
 
 

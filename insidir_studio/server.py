@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import animate, avatar, avatars, compliance, config, fonts, media, project, render, script_writer, tts, ugc, whisper_align
+from . import animate, avatar, avatars, captions, compliance, config, fonts, look, stock, media, project, render, script_writer, tts, ugc, whisper_align
 
 JOBS: dict[str, dict] = {}
 RENDER_LOCK = threading.Lock()
@@ -38,6 +38,10 @@ def _public_settings(s: dict) -> dict:
     if key:
         out["claude"]["api_key"] = "••••" + key[-4:]
         out["claude"]["has_key"] = True
+    for k in ("pexels_key", "pixabay_key"):
+        v = (out.get("stock") or {}).get(k)
+        if v:
+            out["stock"][k] = "••••" + v[-4:]
     return out
 
 
@@ -54,6 +58,8 @@ def status_payload() -> dict:
         "motion": animate.status(),
         "whisper": whisper_align.status(),
         "fonts": fonts.catalogue(),
+        "look": {**look.catalogue(), "captions": {k: v["name"] for k, v in captions.CAPTION_STYLES.items()},
+                 "camera": ugc.CAMERA_STYLES, "moves": ugc.MOVES},
         "limits": {"min": config.MIN_SECONDS, "max": config.MAX_SECONDS, "width": config.WIDTH,
                    "height": config.HEIGHT, "fps": config.FPS},
     }
@@ -320,6 +326,10 @@ class Handler(BaseHTTPRequestHandler):
             key = (body.get("claude") or {}).get("api_key")
             if key is not None and key.startswith("••••"):
                 body["claude"]["api_key"] = cur.get("claude", {}).get("api_key", "")
+            for k in ("pexels_key", "pixabay_key"):
+                v = (body.get("stock") or {}).get(k)
+                if v is not None and v.startswith("••••"):
+                    body["stock"][k] = (cur.get("stock") or {}).get(k, "")
             return self._json(_public_settings(config.save_settings(body)))
         if route == ("GET", "facts"):
             return self._json(compliance.load_facts())
@@ -329,6 +339,9 @@ class Handler(BaseHTTPRequestHandler):
         if route == ("GET", "voices"):
             return self._json({"voices": tts.VOICES, "gender": {v: tts.gender_of(v) for v in tts.VOICES},
                                "defaults": tts.DEFAULT_BY_GENDER})
+        if p[:1] == ["gen"]:
+            from .gen import api as gen_api   # imported lazily: the generate stack is optional
+            return gen_api.handle(self, method, p[1:], q)
         if p[:1] == ["avatars"]:
             return self._avatars(method, p[1:], q)
         if method == "GET" and p[:1] == ["jobs"] and len(p) == 2:
@@ -428,6 +441,33 @@ class Handler(BaseHTTPRequestHandler):
             body = self._body_json()
             script = body.get("script") or proj.get("script") or {}
             return self._json({"issues": script_writer.lint_reply(script, proj)})
+        if what == "stock" and method == "POST" and sub[1:] == ["search"]:
+            body = self._body_json()
+            try:
+                return self._json({"results": stock.search(body.get("query") or "", body.get("aspect") or "9:16")})
+            except stock.StockError as e:
+                raise ApiError(400, str(e))
+        if what == "stock" and method == "POST" and sub[1:] == ["add"]:
+            try:
+                return self._json(stock.download(d, self._body_json()))
+            except stock.StockError as e:
+                raise ApiError(400, str(e))
+        if what == "look-preview" and method == "GET":
+            # a graded still of this project's footage (or the built-in sample) for the Style tab
+            proj = project.load(d)
+            grade = q.get("grade") or "none"
+            fx = [e for e in (q.get("effects") or "").split(",") if e in look.EFFECTS]
+            src_a = next((a for a in proj["assets"] if a["type"] in ("video", "image") and a.get("role") != "music"), None)
+            if src_a:
+                src = d / "build" / "thumbs" / f"{src_a['id']}_look.jpg"
+                if not src.exists():
+                    media.thumbnail(d / src_a["file"], src, min(1.0, (src_a.get("duration") or 0) / 2), width=540)
+            else:
+                src = config.WEB_DIR / "templates" / "viral.jpg"
+            out = d / "build" / "looks" / f"{grade}-{'-'.join(sorted(fx)) or 'plain'}-{src_a['id'] if src_a else 'sample'}.jpg"
+            if not out.exists():
+                look.preview(src, out, {"grade": grade, "effects": fx})
+            return self._serve_file(out, "image/jpeg")
         if what == "voice-preview" and method == "POST":
             body = self._body_json()
             text = (body.get("text") or "This is how your narration will sound.").strip()[:400]
