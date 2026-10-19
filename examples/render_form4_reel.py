@@ -39,7 +39,7 @@ def build_project():
         "Form 4 - the headline is not the filing",
         {
             "mode": "animated",
-            "template": "viral",
+            "template": "editorial-story",
             "topic": "What a public Form 4 filing actually shows",
             "target_seconds": 30,
             "audience": "Everyday people trying to understand financial filings",
@@ -50,7 +50,7 @@ def build_project():
     d = project.project_dir(p["id"])
     p["voice"]["voice"] = "studio_male"
     p["style"].update({"quality": "standard", "captions": "auto", "end_card": True,
-                       "sfx": True, "music_bed": True, "caption_highlight": "#FFFFFF"})
+                       "sfx": True, "music_bed": True, "caption_highlight": "#FFFFFF", "caption_size": 0.88, "caption_words": 2})
     p["script"] = {
         "title": "THE HEADLINE IS NOT THE FILING",
         "facts_used": ["form4_public", "purchases_apart", "links_to_filing"],
