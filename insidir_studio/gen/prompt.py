@@ -46,15 +46,15 @@ LENSES = {
     "anamorphic": "anamorphic lens, oval bokeh, horizontal lens flares, 2.39:1 cinematic framing",
 }
 LIGHTING = {
-    "golden": "golden hour sunlight, warm low sun, long soft shadows",
+    # (no golden hour / candlelight: Insidir videos never go yellow)
+    "dusk": "dusk after sunset, rose-pink sky, soft low light, long soft shadows",
     "blue_hour": "blue hour, cool ambient light, city lights coming on",
     "overcast": "soft overcast daylight, even diffuse light",
     "noon": "hard midday sun, crisp shadows",
     "night_neon": "night, neon signs reflecting on wet streets",
     "studio": "three-point studio lighting, soft key light, rim light",
     "low_key": "low-key dramatic lighting, deep shadows, single hard key light",
-    "practical": "practical lights in frame, motivated warm lamps",
-    "candle": "candlelight, flickering warm glow",
+    "practical": "practical lights in frame, neutral white lamps",
 }
 STYLES = {
     "photoreal": "photorealistic, shot on a cinema camera, natural skin texture, realistic materials, true-to-life colour",
@@ -69,7 +69,7 @@ QUALITY = ("high detail, sharp focus, natural motion, consistent anatomy, tempor
 
 # words that pull in opposite directions in one prompt
 CONFLICTS = [
-    (r"\bnight\b|\bmidnight\b", r"\b(noon|midday|sunny day|daylight|golden hour)\b", "night vs daytime lighting"),
+    (r"\bnight\b|\bmidnight\b", r"\b(noon|midday|sunny day|daylight|dusk)\b", "night vs daytime lighting"),
     (r"\bstatic\b|\blocked[- ]off\b|\btripod\b", r"\b(orbit|dolly|tracking|drone|pan|crash zoom|handheld)\b", "a static camera and a moving camera"),
     (r"\bslow[- ]motion\b|\bslow motion\b", r"\b(hyperlapse|time-?lapse|sped up)\b", "slow motion and time-lapse"),
     (r"\bblack and white\b|\bmonochrome\b", r"\b(vibrant|colorful|colourful|neon)\b", "black and white and vivid colour"),
@@ -80,7 +80,10 @@ CONFLICTS = [
 
 def conflicts(text: str) -> list[str]:
     t = text.lower()
-    return [why for a, b, why in CONFLICTS if re.search(a, t) and re.search(b, t)]
+    out = [why for a, b, why in CONFLICTS if re.search(a, t) and re.search(b, t)]
+    if re.search(r"\b(yellow|golden|gold|amber|mustard|lemon)\b", t):
+        out.append("No yellow in Insidir videos: anything yellow comes out neutral in the final video")
+    return out
 
 
 def guidance_for(adherence: float, base: float) -> float:

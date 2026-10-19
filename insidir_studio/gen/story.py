@@ -75,7 +75,7 @@ def claude_prompt(text: str) -> str:
         "subject, appearance, action, setting\",\"shot\":\"Wide establishing shot|Medium shot|Close-up|...\","
         "\"camera\":[one or two of push_in,pull_out,dolly_zoom,orbit,drone,fpv,crash_zoom,tracking,handheld,crane,"
         "jib_down,gimbal,rack_focus,macro,pan_left,pan_right,tilt_up,static],\"lens\":\"24|35|50|85|135|anamorphic\","
-        "\"lighting\":\"golden|blue_hour|overcast|noon|night_neon|studio|low_key|practical|candle\",\"seconds\":5,"
+        "\"lighting\":\"dusk|blue_hour|overcast|noon|night_neon|studio|low_key|practical\",\"seconds\":5,"
         "\"dialogue\":\"\",\"transition\":\"cut|crossfade|dip|whip|flash\"}]}]}\n"
         "Rules: 3-10 shots, each a single continuous camera move of 3-8 seconds; describe characters the same way "
         "in every shot; no on-screen text.\n\nIdea:\n" + text.strip()
@@ -166,6 +166,9 @@ def assemble(takes: list[dict], out: Path, fps: int, w: int, h: int, music: str 
                    "-pix_fmt", "yuv420p", str(video)], log=log)
     else:
         shutil.copyfile(norm[0], video)
+    # the Insidir logo and the no-yellow guard, once over the whole cut
+    from .. import brand
+    video = brand.apply(video, work / "video_branded.mp4", log)
     total = off
     # audio: dialogue placed at each shot's start, music under it (ducked), all mastered together
     a_in, a_parts, labels = [], [], []
@@ -215,7 +218,7 @@ def render_film(payload: dict, out_dir: Path, progress, cancel, log) -> dict:
                     characters=[{"name": c["name"], "description": c.get("description", ""),
                                  "images": c.get("images", [])} for c in cs],
                     seed=int(base.get("seed", -1)), aspect=base.get("aspect", "16:9"),
-                    steps=int(base.get("steps") or 0), post={})
+                    steps=int(base.get("steps") or 0), post={"brand": False})   # logo goes on once, on the cut
         log(f"shot {i + 1}/{len(shots)}: {sh['shot']} - {sh['prompt'][:60]}")
         r = generate(spec, out_dir / sh["id"], lambda f, m="", i=i: progress((i + f * 0.92) / (len(shots) + 0.5), f"Shot {i + 1}: {m}"),
                      cancel, log)

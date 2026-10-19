@@ -464,7 +464,7 @@ class Handler(BaseHTTPRequestHandler):
                     media.thumbnail(d / src_a["file"], src, min(1.0, (src_a.get("duration") or 0) / 2), width=540)
             else:
                 src = config.WEB_DIR / "templates" / "viral.jpg"
-            out = d / "build" / "looks" / f"{grade}-{'-'.join(sorted(fx)) or 'plain'}-{src_a['id'] if src_a else 'sample'}.jpg"
+            out = d / "build" / "looks" / f"v2-{grade}-{'-'.join(sorted(fx)) or 'plain'}-{src_a['id'] if src_a else 'sample'}.jpg"
             if not out.exists():
                 look.preview(src, out, {"grade": grade, "effects": fx})
             return self._serve_file(out, "image/jpeg")

@@ -58,7 +58,7 @@ function defaults(task) {
     lens: "", lighting: "", style: "photoreal", motion: 0.5, adherence: 0.5, aspect: "16:9", seconds: 5, fps: 0, steps: 0,
     seed: -1, variations: 1, quality: "standard", refine: null, image: "", last_image: "", video: "", mask: "", references: [], character_ids: [],
     control: "none", control_scale: 1.0, strength: 0.7,
-    post: { stabilize: false, deflicker: false, faces: false, fps: 0, upscale: 1, upscaler: "ai", film_finish: false, codec: "h264", quality: "high", sound: true } };
+    post: { stabilize: false, deflicker: false, faces: false, fps: 0, upscale: 1, upscaler: "ai", film_finish: false, logo_corner: "top-left", codec: "h264", quality: "high", sound: true } };
 }
 
 // Mirrors engine.QUALITY so the switches below show what each level turns on.
@@ -222,7 +222,9 @@ function viewCreate(el) {
         field("Upscale", h("div", { style: { display: "grid", gap: "6px" } }, seg([[1, "Off"], [2, "2×"], [4, "4×"]], P.upscale, v => { P.upscale = Number(v); render(); }),
           seg([["ai", "AI (Real-ESRGAN)"], ["fast", "Fast (Lanczos)"]], P.upscaler, v => { P.upscaler = v; render(); })),
           P.upscaler === "fast" ? "Plain resize: seconds, but no new detail." : G.st.tools.realesrgan ? "Real-ESRGAN (ncnn, GPU)" : `Real-ESRGAN in PyTorch (64 MB download once)${st.hardware.device === "cuda" ? "" : "; on a CPU about a minute per frame"}`),
-        field("Format", seg([["h264", "MP4 H.264"], ["h265", "H.265"], ["prores", "ProRes"], ["webm", "WebM"]], P.codec, v => { P.codec = v; render(); })))),
+        field("Format", seg([["h264", "MP4 H.264"], ["h265", "H.265"], ["prores", "ProRes"], ["webm", "WebM"]], P.codec, v => { P.codec = v; render(); }))),
+      field("Insidir logo", seg([["top-left", "Top left"], ["top-right", "Top right"], ["bottom-left", "Bottom left"], ["bottom-right", "Bottom right"]], P.logo_corner || "top-left", v => { P.logo_corner = v; render(); }),
+        "Always on every video, with the no-yellow filter: yellows come out neutral, while skin, orange and red stay as they are.")),
     h("div", { class: "row" }, h("button", { class: "primary big", onclick: submit }, "Generate"),
       h("span", { class: "hint" }, "Queued jobs run one at a time on this machine. Follow them on the History tab.")));
 }

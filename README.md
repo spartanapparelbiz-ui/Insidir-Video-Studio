@@ -19,7 +19,19 @@ A local, free app for Windows 11 that makes 20–35 second vertical (1080×1920)
 
   A MYTH card must be followed straight away by the FACT card that corrects it. Genuine footage is labelled "Real Insidir screen recording", an AI-generated presenter is always labelled, and the last beat carries "Research tool. Not investment advice." An on-screen "AI voice" label is off by default; you can switch it on in **Voice & look**. Each render's post-caption text and file metadata still say the narration is an AI voice, and some platforms ask you to tick their AI-content label for synthetic voices.
 
-There are no paid APIs, subscriptions, credits, credit cards or watermarks. Nothing leaves your computer except the free downloads on first setup and anything you choose to paste into Claude. **Manim isn't used:** every template runs in Motion Canvas, so it was never needed.
+### Brand rules, applied to every video
+
+- **The Insidir logo is always on.** Every video carries the Insidir logo: the dotted "i" from the insidir.com favicon next to the "insidir." wordmark, in the site's logo face (Source Serif 4 Medium). It's drawn in paper white with a soft shadow, so it reads on any footage. This covers every studio format, every Generate clip and every Film.
+  - Pick its corner under **Style → Insidir logo** (or **Generate → Finishing**).
+  - It steps aside during the end card, which already shows the full wordmark.
+  - A Film gets it once, over the finished cut.
+- **No yellow, ever.**
+  - There are no yellow looks, grades, light leaks, glows or lighting presets. Golden hour became *Rose dusk*, and candlelight was removed.
+  - A yellow caption colour turns into white.
+  - Generate adds "yellow" to every negative prompt and warns when a prompt asks for it.
+  - Every finished video then passes through a hue-keyed 3D LUT that turns true yellows neutral, while skin, orange, red, brown and white keep their colour.
+
+There are no paid APIs, subscriptions, credits, credit cards or third-party watermarks. Nothing leaves your computer except the free downloads on first setup and anything you choose to paste into Claude. **Manim isn't used:** every template runs in Motion Canvas, so it was never needed.
 
 ## Install and launch on Windows 11
 

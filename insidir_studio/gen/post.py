@@ -207,7 +207,7 @@ def finish(src: Path, out: Path, fps: int, opts: dict, log=None, progress=None) 
     """Apply the requested improvements in a sensible order, then encode the final file.
 
     opts: stabilize, deflicker, faces, upscale (1|2|4), upscaler (ai|fast), film_finish, fps (target), codec,
-    quality, audio (path)."""
+    quality, audio (path), brand (logo + no-yellow; default on), logo_corner."""
     progress = progress or (lambda f, msg="": None)
     work = out.parent
     work.mkdir(parents=True, exist_ok=True)
@@ -236,6 +236,11 @@ def finish(src: Path, out: Path, fps: int, opts: dict, log=None, progress=None) 
             cur = upscale(cur, nxt, int(opts["upscale"]), log, ai=opts.get("upscaler", "ai") != "fast")
         elif step == "film_finish":
             cur = film_finish(cur, nxt, log)
+    if opts.get("brand", True):
+        # every finished video: no yellow, and the Insidir logo (film shots get it once, on the cut)
+        from .. import brand
+        progress(0.93, "Insidir logo")
+        cur = brand.apply(cur, work / "branded.mp4", log, corner=opts.get("logo_corner") or "top-left")
     if opts.get("sound") and not opts.get("audio"):
         # synthesised ambience + effects timed to the on-screen motion
         from . import audio

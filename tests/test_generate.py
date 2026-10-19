@@ -47,12 +47,14 @@ def _video(path: Path, kind: str, n: int = 24, size=(96, 64)) -> Path:
 
 class PromptTests(unittest.TestCase):
     def test_enhance_adds_camera_lens_light_and_negatives(self):
-        r = prompt.enhance("a fox in the snow", camera=["push_in", "orbit"], lens="85", lighting="golden")
+        r = prompt.enhance("a fox in the snow", camera=["push_in", "orbit"], lens="85", lighting="dusk")
         self.assertIn("push-in", r["prompt"])
         self.assertIn("orbit", r["prompt"])
         self.assertIn("85mm", r["prompt"])
-        self.assertIn("golden hour", r["prompt"].lower())
+        self.assertIn("dusk", r["prompt"].lower())
         self.assertIn("flickering", r["negative"])
+        self.assertIn("yellow", r["negative"])                       # brand rule: never yellow
+        self.assertFalse(any("golden" in v or "candle" in v for v in prompt.LIGHTING.values()))
         self.assertTrue(r["prompt"].startswith("a fox in the snow."))
 
     def test_conflicts_and_adherence(self):
@@ -148,6 +150,30 @@ class QualityAndPostTests(unittest.TestCase):
             self.assertEqual((info["width"], info["height"]), (64, 32))
         finally:
             upscale._model.clear()
+
+    def test_every_video_gets_the_logo_and_no_yellow(self):
+        from PIL import Image
+        from insidir_studio import brand
+        src = TMP / "brand_src.mp4"
+        frame = np.zeros((128, 224, 3), np.uint8)
+        frame[:, :56] = (235, 210, 40)    # yellow
+        frame[:, 56:112] = (200, 90, 30)  # red-orange fox fur
+        frame[:, 112:168] = (232, 190, 160)  # skin
+        frame[:, 168:] = (30, 60, 120)    # blue
+        post.write_video(np.stack([frame] * 6), 12, src)
+        out = post.finish(src, TMP / "brand" / "final.mp4", 12, {}, log=lambda m: None)
+        f = TMP / "brand" / "f.png"
+        media.run(["-i", str(out), "-frames:v", "1", str(f)])
+        o = np.asarray(Image.open(f).convert("RGB")).astype(int)
+        y = o[100, 28]
+        self.assertLess(y.max() - y.min(), 20)                         # yellow came out grey
+        self.assertGreater(o[100, 84][0] - o[100, 84][2], 120)         # orange untouched
+        self.assertGreater(o[100, 140][0] - o[100, 140][2], 50)        # skin untouched
+        logo = np.asarray(brand.logo_image(20))
+        self.assertGreater(logo[..., 3].max(), 200)
+        # the paper-white logo sits in the top-left corner, over the yellow column
+        corner = o[4:30, 4:56]
+        self.assertGreater(corner.min(axis=2).max(), 200)
 
     def test_crossfade_join_has_no_seam(self):
         a = [np.full((4, 4, 3), 0, np.uint8)] * 6

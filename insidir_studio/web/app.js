@@ -802,8 +802,8 @@ function tabLook(el) {
     catch (e) { toast(e.message, true); }
     play.disabled = false; play.replaceChildren(ic("voice"), "Preview voice");
   } }, ic("voice"), "Preview voice");
-  const color = h("input", { type: "color", value: (!st.caption_highlight || st.caption_highlight.toUpperCase() === "#FFD84D" ? "#FFFFFF" : st.caption_highlight) });
-  color.oninput = () => { st.caption_highlight = color.value; save(); };
+  const color = h("input", { type: "color", value: noYellow(st.caption_highlight) });
+  color.onchange = () => { st.caption_highlight = noYellow(color.value, color); save(); };
   const trans = h("select", { onchange: e => { st.transitions = e.target.value; save(); } },
     [["cinematic", "Cinematic: hard cuts + quick transitions when the subject changes"], ["cuts", "Hard cuts only"]].map(([val, t]) => h("option", { value: val, selected: st.transitions === val }, t)));
   const music = p.assets.find(a => a.role === "music");
@@ -863,6 +863,21 @@ function tabLook(el) {
     h("button", { class: "primary", onclick: () => { S.tab = "style"; renderProject(); } }, "Next: style")].filter(Boolean));
 }
 
+// brand rule: no yellow anywhere. Mirrors brand.is_yellow on the server (which enforces it).
+function noYellow(hex, input) {
+  const c = (hex || "#FFFFFF").replace("#", "");
+  const [r, g, b] = [0, 2, 4].map(i => parseInt(c.slice(i, i + 2), 16) / 255);
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let hue = 0;
+  if (d) hue = mx === r ? 60 * (((g - b) / d) % 6) : mx === g ? 60 * ((b - r) / d + 2) : 60 * ((r - g) / d + 4);
+  if (hue < 0) hue += 360;
+  if (hue >= 38 && hue <= 80 && mx && d / mx > 0.18 && mx > 0.25) {
+    if (input) { input.value = "#FFFFFF"; toast("No yellow in Insidir videos: using white instead.", true); }
+    return "#FFFFFF";
+  }
+  return "#" + c;
+}
+
 // ------------------------------------------------------------ 5 style
 const ASPECT_SHAPES = { "9:16": [18, 32], "4:5": [26, 32], "1:1": [30, 30], "16:9": [40, 23] };
 
@@ -903,8 +918,8 @@ function tabStyle(el) {
   const camK = h("input", { type: "range", min: 0.4, max: 2, step: 0.1, value: st.camera_strength || 1 });
   camK.onchange = () => set("camera_strength", Number(camK.value), false);
   // captions
-  const color = h("input", { type: "color", value: st.caption_highlight || "#FFFFFF" });
-  color.oninput = () => { st.caption_highlight = color.value; save(); };
+  const color = h("input", { type: "color", value: noYellow(st.caption_highlight) });
+  color.onchange = () => { st.caption_highlight = noYellow(color.value, color); save(); };
   const capStyle = h("select", { onchange: e => set("caption_style", e.target.value, false) },
     Object.entries(L.captions).map(([v, t]) => h("option", { value: v, selected: (st.caption_style || "pop") === v }, t)));
   const segOf = (key, opts, def) => h("div", { class: "seg" }, opts.map(([v, t]) =>
@@ -921,6 +936,9 @@ function tabStyle(el) {
     h("div", { class: "panel" }, h("h2", {}, "Frame"),
       aspects,
       h("p", { class: "hint" }, "Every format renders natively in the shape you pick (the short side is always 1080 px). Landscape UGC puts the app and your face side by side; vertical selfies sit on a blurred fill. Animated templates keep their composition centred and extend the background to the edges.")),
+    h("div", { class: "panel" }, h("h2", {}, "Insidir logo"),
+      field("Corner", segOf("logo_corner", [["top-left", "Top left"], ["top-right", "Top right"], ["bottom-left", "Bottom left"], ["bottom-right", "Bottom right"]], "top-left")),
+      h("p", { class: "hint" }, "Every video carries the Insidir logo (the dotted i and the insidir. wordmark). It steps aside for the end card, which shows the full wordmark. There is also never any yellow: every render passes through a filter that turns yellows neutral and leaves skin, orange and red alone.")),
     h("div", { class: "panel" }, h("h2", {}, "Colour grade"), grades),
     h("div", { class: "panel" }, h("h2", {}, "Film effects"), effects,
       h("div", { class: "row", style: { marginTop: "10px" } }, h("span", { class: "hint" }, "Strength"), strength)),
@@ -1251,7 +1269,7 @@ function modalSettings(el) {
     h("div", { class: "panel" }, h("h3", {}, "Defaults for new videos"),
       h("div", { class: "grid2" },
         field("Voice", (() => h("select", { onchange: e => (s.voice = e.target.value) }, Object.entries(S.voices).map(([id, n]) => h("option", { value: id, selected: s.voice === id }, (S.voiceGender[id] === "man" ? "Man · " : "Woman · ") + n))))()),
-        field("Caption highlight", (() => { const x = h("input", { type: "color", value: s.caption_highlight }); x.oninput = () => (s.caption_highlight = x.value); return x; })()))),
+        field("Caption highlight", (() => { const x = h("input", { type: "color", value: noYellow(s.caption_highlight) }); x.onchange = () => (s.caption_highlight = noYellow(x.value, x)); return x; })()))),
     h("p", { class: "hint" }, "Projects and models live in " + S.status.home),
     h("button", { class: "primary", onclick: async () => {
       try { S.settings = await api("PUT", "settings", s); S.status = await api("GET", "status"); renderPills(); toast("Settings saved"); closeModal(); if (P()) renderProject(); }
