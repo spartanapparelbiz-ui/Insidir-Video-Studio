@@ -36,6 +36,18 @@ async function api(method, path, body) {
   return data;
 }
 
+// Icon from the studio sprite (web/icons.svg), sized by CSS (.i)
+function ic(name) {
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("class", "i");
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS(NS, "use");
+  use.setAttribute("href", `/icons.svg#${name}`);
+  svg.append(use);
+  return svg;
+}
+
 function toast(msg, err) {
   const t = document.getElementById("toast");
   t.textContent = msg; t.className = "toast" + (err ? " err" : ""); t.hidden = false;
@@ -64,6 +76,7 @@ async function boot() {
     S.voices = v.voices; S.voiceGender = v.gender; S.voiceDefaults = v.defaults;
   } catch (e) { toast("Could not reach the studio: " + e.message, true); return; }
   renderPills();
+  document.getElementById("ver").textContent = "v" + S.status.version;
   await loadProjects();
   const last = localStorage.getItem("ivs:last");
   if (last && S.projects.some(p => p.id === last)) openProject(last);
@@ -136,7 +149,7 @@ function lintSoon(delay = 600) {
 }
 
 // ------------------------------------------------------------ project view
-const TABS = [["brief", "Brief"], ["footage", "Footage"], ["script", "Script"], ["look", "Voice & look"], ["render", "Render"]];
+const TABS = [["brief", "Brief", "brief"], ["footage", "Footage", "footage"], ["script", "Script", "script"], ["look", "Voice & look", "voice"], ["render", "Render", "render"]];
 
 function renderProject() {
   const main = document.getElementById("main");
@@ -146,9 +159,9 @@ function renderProject() {
     h("div", { class: "phead" },
       h("h1", {}, p.name), h("span", { class: "saved" }, "Saved"),
       h("span", { style: { flex: 1 } }),
-      h("button", { class: "small danger", onclick: deleteProject }, "Delete project")),
-    h("div", { class: "tabs" }, TABS.map(([id, label], i) =>
-      h("button", { class: S.tab === id ? "on" : "", onclick: () => { S.tab = id; renderProject(); } }, h("i", {}, i + 1), label))),
+      h("button", { class: "small danger", onclick: deleteProject }, ic("trash"), "Delete project")),
+    h("div", { class: "tabs" }, TABS.map(([id, label, icon], i) =>
+      h("button", { class: S.tab === id ? "on" : "", onclick: () => { S.tab = id; renderProject(); } }, ic(icon), h("i", {}, i + 1), label))),
     h("div", { id: "tab" }));
   ({ brief: tabBrief, footage: tabFootage, script: tabScript, look: tabLook, render: tabRender })[S.tab](document.getElementById("tab"));
 }
@@ -302,7 +315,7 @@ function tabScript(el) {
         const { prompt } = await api("GET", `projects/${P().id}/prompt`);
         promptBox.value = prompt;
         try { await navigator.clipboard.writeText(prompt); toast("Prompt copied"); } catch (e) { promptBox.select(); toast("Select the prompt and copy it (Ctrl+C)"); }
-      } }, "1. Copy prompt"),
+      } }, ic("copy"), "1. Copy prompt"),
       h("a", { href: "https://claude.ai/new", target: "_blank", rel: "noopener" }, "Open claude.ai ↗")),
     h("div", { style: { height: "8px" } }), promptBox,
     h("div", { style: { height: "10px" } }), reply,
@@ -503,8 +516,8 @@ function tabLook(el) {
     play.disabled = true; play.textContent = "Voicing…";
     try { const r = await api("POST", `projects/${p.id}/voice-preview`, { text: sample.value, voice: v.voice, speed: v.speed }); audio.src = r.url; audio.play(); }
     catch (e) { toast(e.message, true); }
-    play.disabled = false; play.textContent = "Preview voice";
-  } }, "Preview voice");
+    play.disabled = false; play.replaceChildren(ic("voice"), "Preview voice");
+  } }, ic("voice"), "Preview voice");
   const color = h("input", { type: "color", value: st.caption_highlight || "#FFD84D" });
   color.oninput = () => { st.caption_highlight = color.value; save(); };
   const trans = h("select", { onchange: e => { st.transitions = e.target.value; save(); } },
@@ -573,14 +586,14 @@ function tabRender(el) {
   const prog = h("div", { class: "big-progress" }, h("div", {}));
   const msg = h("div", { class: "hint" });
   const log = h("pre", { class: "log", hidden: true });
-  const btn = h("button", { class: "primary", disabled: !ready, onclick: () => startRender(btn, prog, msg, log) }, "Render MP4");
+  const btn = h("button", { class: "primary", disabled: !ready, onclick: () => startRender(btn, prog, msg, log) }, ic("render"), "Render MP4");
   el.append(
     h("div", { class: "panel" }, h("h2", {}, "Ready to render?"),
       h("ul", { class: "issues" }, checks.map(([ok, t]) => h("li", { class: ok ? "ok" : "error" }, t))),
       h("div", { style: { height: "12px" } }), btn, prog, msg,
       h("button", { class: "small ghost", onclick: () => (log.hidden = !log.hidden) }, "Show log"), log),
     h("div", { class: "panel" }, h("div", { class: "row", style: { justifyContent: "space-between" } }, h("h2", {}, "Renders"),
-      h("button", { class: "small", onclick: () => api("POST", `projects/${p.id}/open-folder`) }, "Open folder")),
+      h("button", { class: "small", onclick: () => api("POST", `projects/${p.id}/open-folder`) }, ic("folder"), "Open folder")),
       h("div", { class: "renders", id: "renders" })));
   if (S.job && S.job.project === p.id && ["queued", "running"].includes(S.job.status)) pollJob(btn, prog, msg, log);
   renderRenders();
@@ -619,10 +632,10 @@ async function renderRenders() {
     const disc = h("textarea", { rows: 4, readonly: true });
     fetch(base + f.replace(/\.mp4$/, ".txt")).then(r => r.ok ? r.text() : "").then(t => (disc.value = t.trim()));
     el.append(h("div", {},
-      h("video", { src: base + f, controls: true, preload: "metadata", playsinline: true }),
+      h("video", { src: base + f, poster: base + f.replace(/\.mp4$/, ".jpg"), controls: true, preload: "metadata", playsinline: true }),
       h("div", { class: "file" }, f),
-      h("div", { class: "row" }, h("a", { href: base + f, download: f }, "Download MP4"),
-        h("button", { class: "small", onclick: () => { navigator.clipboard.writeText(disc.value.split("\n\n").pop()); toast("Disclosure copied"); } }, "Copy disclosure")),
+      h("div", { class: "row" }, h("a", { class: "btnlink", href: base + f, download: f }, ic("download"), "Download MP4"),
+        h("button", { class: "small", onclick: () => { navigator.clipboard.writeText(disc.value.split("\n\n").pop()); toast("Disclosure copied"); } }, ic("copy"), "Copy disclosure")),
       disc));
   }
 }

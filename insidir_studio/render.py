@@ -396,6 +396,10 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
     }
     side.write_text(json.dumps(report, indent=2), encoding="utf-8")
     out_path.with_suffix(".txt").write_text(disclosure["post"] + "\n", encoding="utf-8")
+    try:  # poster frame for the studio's render list
+        media.thumbnail(out_path, out_path.with_suffix(".jpg"), t=min(9.0, total * 0.4), width=540)
+    except media.FFmpegError:
+        pass
     progress(1.0, "Done")
     log(f"wrote {out_path} ({info['duration']:.1f}s, {info['width']}x{info['height']}) in {report['render_seconds']}s")
     return report

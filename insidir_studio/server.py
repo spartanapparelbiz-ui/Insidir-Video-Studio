@@ -401,6 +401,13 @@ def serve(port: int = 7860, open_browser: bool = True) -> None:
     else:
         raise SystemExit(f"Ports {port}-{port + 9} are busy.")
     url = f"http://127.0.0.1:{httpd.server_address[1]}/"
+    print()
+    print("   o  .")
+    print("  ooo   Insidir Video Studio " + config.VERSION)
+    print("   o    Free, local, claim-checked short videos")
+    print("   o")
+    print("  ooo")
+    print()
     print(f"{config.APP_NAME} is running at {url}")
     print("Keep this window open while you work. Press Ctrl+C to stop.")
     if open_browser:

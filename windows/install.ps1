@@ -146,6 +146,8 @@ try {
     $s = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
     $s.TargetPath = Join-Path $Root "start.bat"
     $s.WorkingDirectory = $Root
+    $s.IconLocation = (Join-Path $Root "windows\insidir-studio.ico") + ",0"
+    $s.Description = "Insidir Video Studio"
     $s.Save()
     Write-Host "Desktop shortcut created."
 } catch { }
