@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT))
 TMP = Path(tempfile.mkdtemp(prefix="ivs-test-"))
 os.environ["INSIDIR_STUDIO_HOME"] = str(TMP)
 
-from insidir_studio import fonts  # noqa: E402
+from insidir_studio import avatars, fonts  # noqa: E402
 from insidir_studio import (animate, avatar, captions, sound, compliance, config, media, project, render,  # noqa: E402
                             script_writer, timeline, tts, ugc, whisper_align)
 
@@ -281,18 +281,38 @@ class UgcTests(unittest.TestCase):
         self.assertIn("first person is fine", script_writer.build_prompt({"mode": "ugc", "brief": {}, "assets": []}, FACTS))
 
 
+class AvatarLibraryTests(unittest.TestCase):
+    def test_cartoon_avatar_and_edits(self):
+        av = avatars.create("Host", "cartoon", character="maya", voice="studio_female_uk")
+        self.assertEqual((av["kind"], av["character"], av["voice"]), ("cartoon", "maya", "studio_female_uk"))
+        av = avatars.update(av["id"], {"voice": "nope", "speed": 3, "character": "leo", "focus": [2, 0]})
+        self.assertEqual((av["voice"], av["speed"], av["character"], av["focus"]), (tts.DEFAULT_VOICE, 1.2, "leo", [0.5, 0.4]))
+        self.assertEqual(avatars.usable_photo(av), ["This avatar has no photo."])
+        avatars.delete(av["id"])
+        self.assertNotIn(av["id"], [a["id"] for a in avatars.list_avatars()])
+        with self.assertRaises(ValueError):
+            avatars.avatar_dir("../etc")
+
+    def test_every_voice_has_a_gender(self):
+        self.assertGreaterEqual(len(tts.VOICES), 30)
+        for v in tts.VOICES:
+            self.assertIn(tts.gender_of(v), ("man", "woman"))
+        self.assertEqual(tts.gender_of("studio_male_uk"), "man")
+        self.assertEqual(tts.gender_of("studio_calm"), "woman")
+
+
 class FontTests(unittest.TestCase):
     def test_catalogue_files_exist_and_include_insidir_fonts(self):
         self.assertEqual(fonts.files_exist(), [])
         insidir = {f["name"] for f in fonts.FONTS.values() if f["group"] == "insidir"}
-        self.assertEqual(insidir, {"Inter", "Source Serif 4", "JetBrains Mono"})
+        self.assertEqual(insidir, {"Insidir logo", "Inter", "Source Serif 4", "JetBrains Mono"})
         for f in fonts.FONTS.values():
             self.assertTrue((config.FONTS_DIR / fonts.preview_file(f)).exists())
 
     def test_nearest_weight_never_fakes_bold(self):
         f = fonts.get("source-serif-4")
         self.assertEqual(fonts.nearest(f, 800), "SourceSerif4-Black.ttf")   # tie -> heavier
-        self.assertEqual(fonts.nearest(f, 400), "SourceSerif4-SemiBold.ttf")
+        self.assertEqual(fonts.nearest(f, 400), "SourceSerif4-Medium.ttf")
         self.assertEqual(set(fonts.web_faces(fonts.get("anton")).values()), {"Anton-Regular.ttf"})
         self.assertEqual(fonts.get("nope")["id"], "inter")
         self.assertIsNone(fonts.get("", None))
@@ -305,6 +325,7 @@ class FontTests(unittest.TestCase):
         self.assertIn("Style: Caption,Anton,", ass)
         self.assertIn("Style: Overlay,Source Serif 4,", ass)
         self.assertIn("Style: Label,Inter,", ass)   # disclosure labels stay in the brand face
+        self.assertIn("Style: EndHead,Source Serif 4 Medium,", ass)   # the wordmark uses the logo face
 
 
 @unittest.skipUnless(config.find_tool("ffmpeg"), "FFmpeg not installed")
@@ -442,21 +463,28 @@ class RenderTests(unittest.TestCase):
         old = avatar.detect_gpus
         avatar.detect_gpus = lambda: [{"name": "Test GPU", "vram_gb": 24.0}]
         try:
-            proj = project.new("Photo avatar", {"mode": "photo_avatar"})
-            d = project.project_dir(proj["id"])
+            # a saved avatar from the library, imported once
             img = TMP / "src" / "presenter.png"
             img.parent.mkdir(exist_ok=True)
             media.run(["-f", "lavfi", "-i", "testsrc=s=800x1000:r=1:d=1", "-frames:v", "1", str(img)])
             tmp = TMP / "up_presenter.png"
             shutil.copyfile(img, tmp)
-            project.add_asset(d, "presenter.png", tmp, "presenter")
+            av = avatars.create("Jordan", "photo", tmp, "presenter.png", voice="studio_calm")
+            self.assertEqual((av["width"], av["height"], av["voice"]), (800, 1000, "studio_calm"))
+            proj = project.new("Photo avatar", {"mode": "photo_avatar"})
+            d = project.project_dir(proj["id"])
             self._screen(d)
             proj = project.load(d)
             for a in proj["assets"]:
-                a.update(rights_confirmed=True, genuine=a["role"] == "screen", ai_generated=a["role"] == "presenter")
+                a.update(rights_confirmed=True, genuine=True)
+            proj["avatar"] = {"id": av["id"]}
             proj["style"]["captions"] = "estimate"
+            proj["style"]["quality"] = "standard"
             proj["script"] = script_writer.template_script(proj, FACTS, 0)
             project.save(d, proj)
+            with self.assertRaises(render.RenderError):   # no consent yet
+                render.render(d, settings=settings, log=lambda m: None, engine_name="test-tone")
+            avatars.update(av["id"], {"consent_confirmed": True})
             report = render.render(d, settings=settings, log=lambda m: None, engine_name="test-tone")
         finally:
             avatar.detect_gpus = old

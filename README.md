@@ -54,6 +54,48 @@ To use the smaller 88 MB voice model on a slow machine, run `.venv\Scripts\pytho
 | UGC | **Talking head** | Clips of you talking (record them in the studio or upload them) | Your own voice and face, cut into tight jump cuts with captions from what you actually said |
 | Screen demo | **Screen-recording demo** | Your Insidir screen recordings and screenshots | Cinematic cuts with a Kokoro voice-over |
 
+### Saved avatars
+
+Click **Avatars** in the top bar.
+
+- **Import a photo:** a sharp, front-facing head-and-shoulders photo works best, 1024 px or larger.
+- **Add a cartoon host:** Dot, Maya, Leo or Sam.
+- Give each avatar a name and a voice. Use **Hear voice** to preview it.
+- For a photo, click the middle of the face. Then confirm either:
+  - that it's you or the person gave written consent, or
+  - that the face is AI-generated.
+
+Avatars are saved in `%USERPROFILE%\InsidirStudio\avatars` and stay there for every future project. On the Brief tab of an **AI photo avatar** or **Avatar host** video, pick one. Its voice comes with it.
+
+**How realistic a photo avatar looks depends on the talking-avatar model you install** (see [Optional: talking avatar](#optional-talking-avatar)). With **InfiniteTalk** on a 24 GB+ NVIDIA GPU you get natural head and body motion and lip sync from a single photo. That is the closest open, local equivalent to paid avatar services. On a PC without a suitable GPU, photo avatars can't be animated realistically, and the studio won't fake it. Use the cartoon **Avatar host** or **UGC** instead.
+
+### Voices
+
+There are 34 Kokoro voices, all running on your PC:
+
+- **Men (15):** US and UK voices, plus studio blends:
+  - **Studio Male** (the default),
+  - **Studio Male Deep**,
+  - **Studio Narrator**,
+  - **Studio Male (UK)**.
+- **Women (19):** US and UK voices, plus studio blends:
+  - **Studio Warm** (the default),
+  - **Studio Bright**,
+  - **Studio Calm**,
+  - **Studio Female (UK)**.
+
+Each voice shows Kokoro's own quality grade. Blends mix voices for a fuller, more natural read.
+
+### Smoothness
+
+In **High** quality, these formats render at 60 fps:
+
+- animated templates,
+- UGC,
+- AI photo avatar.
+
+Every UGC/avatar face shot gets a slow, eased push-in, computed at 2× resolution so it moves in half-pixel steps instead of jittering. The screen-demo cut stays at 30 fps.
+
 ### UGC: videos of you
 
 1. Choose **Talking head (UGC)** on the Brief tab.
@@ -134,6 +176,7 @@ Rendering a 30-second video takes about 1 minute on a typical laptop CPU.
 **Voice & look** has a **Caption font** and a **Headline font**. Each shows a live preview as you pick.
 
 - **From insidir.com:** the fonts of the Insidir site itself:
+  - **Insidir logo**, the wordmark face (Source Serif 4 Medium with the logo's tight spacing; the end-card wordmark and the studio header use it too). The "i" icon is drawn from dots, not a font.
   - **Inter**, the interface font and the default,
   - **Source Serif 4**, the site's headline serif,
   - **JetBrains Mono**, its data font.
@@ -173,6 +216,8 @@ This powers the **AI photo avatar** format and animated presenter beats in the s
 
 | Engine | Status (check the current licences yourself) |
 |---|---|
+| InfiniteTalk | Most realistic: photo → talking video with head/body motion, built on Wan2.1. Code and Wan2.1 weights published under Apache-2.0; check the audio encoder and every other bundled model. Needs a 24 GB+ GPU for good speed |
+| EchoMimic | Portrait animation with head motion; code Apache-2.0, check the weights; 12–16 GB GPU |
 | SadTalker | Repository Apache-2.0 in recent versions; downloaded weights have their own terms |
 | MuseTalk | Code MIT; loads third-party weights with their own licences; call it through a small wrapper script |
 | Wav2Lip | Research / non-commercial only, so it is **blocked** for commercial projects |

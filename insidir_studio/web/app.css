@@ -25,7 +25,9 @@ a { color: var(--paper); }
 .top { display: flex; align-items: center; gap: 20px; padding: 12px 20px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--ink); z-index: 5; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; white-space: nowrap; }
 .brand img { display: block; border-radius: 7px; }
-.brand .word { font-weight: 800; font-size: 19px; letter-spacing: -0.03em; }
+/* the Insidir wordmark face, as on insidir.com (.logo: Source Serif 4, 500, -0.035em) */
+@font-face { font-family: "Insidir Logo"; src: url("/fonts/SourceSerif4-Medium.ttf"); font-weight: 500; }
+.brand .word { font-family: "Insidir Logo", Georgia, serif; font-weight: 500; font-size: 23px; letter-spacing: -0.035em; }
 .brand .word .dot { color: var(--paper); }
 .brand .product { font-weight: 600; font-size: 15px; color: var(--muted); padding-left: 10px; border-left: 1px solid var(--line); }
 .brand .ver { font: 500 10px/16px var(--mono); color: var(--faint); border: 1px solid var(--line); padding: 0 6px; letter-spacing: .06em; }
@@ -234,3 +236,20 @@ pre.log { max-height: 220px; overflow: auto; background: #000; padding: 10px; fo
 .font-preview.muted { font-size: 14px; font-weight: 500; color: var(--muted); white-space: normal; }
 .grid2 > *, .grid3 > * { min-width: 0; }
 .field select { max-width: 100%; }
+
+/* avatars */
+.av-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-top: 14px; }
+.av-card { display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 12px; border: 1px solid var(--line); background: #0f0f0e; }
+.av-card.warn { border-color: var(--warn); }
+.av-card .focus, .av-thumb { width: 120px; height: 150px; background: #000 center / cover no-repeat; border: 1px solid var(--line); }
+.av-card .focus { background-size: contain; }
+.av-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.av-body audio { width: 100%; height: 30px; }
+.av-pick { display: flex; flex-wrap: wrap; gap: 10px; }
+.av-choice { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 112px; padding: 8px; background: var(--ink); text-align: center; }
+.av-choice.on { box-shadow: inset 0 0 0 1px var(--paper); border-color: var(--paper); }
+.av-choice b { font-size: 13px; }
+.av-thumb.sm { width: 92px; height: 112px; }
+.av-thumb.plus { display: grid; place-items: center; font-size: 34px; color: var(--muted); }
+.modal-card { transition: transform .22s cubic-bezier(.2,.8,.2,1), opacity .22s ease; }
+.modal[hidden] .modal-card { transform: translateY(8px); opacity: 0; }

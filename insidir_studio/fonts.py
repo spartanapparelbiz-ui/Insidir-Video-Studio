@@ -1,7 +1,9 @@
 """Font catalogue: the typefaces a video's captions and headlines can use.
 
-The first three are the fonts of insidir.com itself (web/assets/fonts in the Insidir repo):
-Inter for the interface, Source Serif 4 for headlines and JetBrains Mono for data. The rest
+The first four are the fonts of insidir.com itself (web/assets/fonts in the Insidir repo):
+the logo face (Source Serif 4 Medium, as in the site's .logo rule), Inter for the interface,
+Source Serif 4 for headlines and JetBrains Mono for data. (The "i" icon is drawn from dots,
+not a font.) The rest
 are display faces that suit short-form video. All are SIL Open Font License 1.1 (commercial
 use allowed); the licences are in insidir_studio/fonts/licenses.
 
@@ -24,8 +26,11 @@ FONTS: dict[str, dict] = {
     "inter": {"name": "Inter", "group": "insidir", "note": "Insidir's interface font",
               "files": {600: "Inter-SemiBold.otf", 700: "Inter-Bold.otf", 800: "Inter-ExtraBold.otf"},
               "ass": ("Inter", True)},
+    "insidir-logo": {"name": "Insidir logo", "group": "insidir", "note": "The wordmark face: Source Serif 4 Medium",
+                     "files": {500: "SourceSerif4-Medium.ttf", 600: "SourceSerif4-SemiBold.ttf", 700: "SourceSerif4-Bold.ttf"},
+                     "ass": ("Source Serif 4 Medium", False)},
     "source-serif-4": {"name": "Source Serif 4", "group": "insidir", "note": "Insidir's headline serif",
-                       "files": {600: "SourceSerif4-SemiBold.ttf", 700: "SourceSerif4-Bold.ttf", 900: "SourceSerif4-Black.ttf"},
+                       "files": {500: "SourceSerif4-Medium.ttf", 600: "SourceSerif4-SemiBold.ttf", 700: "SourceSerif4-Bold.ttf", 900: "SourceSerif4-Black.ttf"},
                        "ass": ("Source Serif 4", True)},
     "jetbrains-mono": {"name": "JetBrains Mono", "group": "insidir", "note": "Insidir's data and filing font",
                        "files": {500: "JetBrainsMono-Medium.ttf", 700: "JetBrainsMono-Bold.ttf", 800: "JetBrainsMono-ExtraBold.ttf"},

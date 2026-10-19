@@ -23,6 +23,27 @@ from . import media
 # What we know about popular open models, as of October 2026. Licences change:
 # read the current LICENSE of the code and of every checkpoint before use.
 KNOWN_ENGINES = {
+    "infinitetalk": {
+        "name": "InfiniteTalk (MeiGen-AI) - most realistic",
+        "url": "https://github.com/MeiGen-AI/InfiniteTalk",
+        "commercial": "check",
+        "note": "Photo to talking video with natural head, shoulder and hand motion as well as lip sync, built on the "
+                "Wan2.1 image-to-video model. The closest open model to commercial avatar services. Code and Wan2.1 "
+                "weights were published under Apache-2.0; it also loads an audio encoder with its own terms. Verify all "
+                "of them. Needs a 24 GB+ NVIDIA GPU for good speed (smaller cards work with offloading, much slower). "
+                "Call it through a small wrapper script that writes one MP4.",
+        "min_vram_gb": 24,
+        "example": 'python infinitetalk_wrapper.py --image "{image}" --audio "{audio}" --out "{output}" --size 720',
+    },
+    "echomimic": {
+        "name": "EchoMimic (Ant Group)",
+        "url": "https://github.com/antgroup/echomimic_v2",
+        "commercial": "check",
+        "note": "Audio-driven portrait animation with head motion and expressions. Code Apache-2.0; check the weights' "
+                "and every bundled model's licence. A 12-16 GB GPU is comfortable. Use a wrapper script.",
+        "min_vram_gb": 12,
+        "example": 'python echomimic_wrapper.py --image "{image}" --audio "{audio}" --out "{output}"',
+    },
     "musetalk": {
         "name": "MuseTalk (TMElyralab)",
         "url": "https://github.com/TMElyralab/MuseTalk",

@@ -31,6 +31,7 @@ GAP = 0.30        # silences longer than this are cut out
 PAD_IN = 0.06     # keep a breath before the first word
 PAD_OUT = 0.10    # and a little after the last
 BUBBLE = 456      # face-cam circle size (px)
+PUSH = 0.035      # each face shot pushes in this much, eased, for a smooth handheld-camera feel
 
 
 def _w(text: str) -> str:
@@ -270,8 +271,13 @@ def render_segment(sg: Seg, creator: dict, screen: dict | None, project_dir: Pat
     inputs = ["-ss", f"{sg.start:.3f}", "-i", str(project_dir / creator["file"])]
     head = f"[0:v]fps={fps},setsar=1,tpad=stop_mode=clone:stop_duration=1"
     if sg.layout == "face" or screen is None:
+        # a slow eased push-in (supersampled 2x so the zoom moves in half-pixel steps, not jitter)
         x, y, w, h = cover(cw, ch, W / H, face_focus, sg.zoom)
-        graph = f"{head},crop={w}:{h}:{x}:{y},scale={W}:{H}:flags=lanczos[v]"
+        n = max(1, sg.frames - 1)
+        fy = float(face_focus[1])
+        graph = (f"{head},crop={w}:{h}:{x}:{y},scale={W * 2}:{H * 2}:flags=bicubic,"
+                 f"zoompan=z='1+{PUSH}*(1-cos(PI*min(on/{n}\,1)))/2':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)*{fy:.3f}'"
+                 f":d=1:s={W}x{H}:fps={fps}[v]")
     elif sg.layout == "split":
         inputs += _screen_input(screen, project_dir, sg.screen_start, seconds)
         x, y, w, h = cover(cw, ch, W / (H / 2), face_focus, sg.zoom)

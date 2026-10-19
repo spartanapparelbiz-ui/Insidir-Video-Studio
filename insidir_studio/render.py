@@ -7,7 +7,7 @@ import shutil
 import time
 from pathlib import Path
 
-from . import animate, audio, sound, ugc, avatar, captions, compliance, config, media, project, timeline, tts, whisper_align
+from . import animate, audio, avatars, sound, ugc, avatar, captions, compliance, config, media, project, timeline, tts, whisper_align
 
 W, H, FPS = config.WIDTH, config.HEIGHT, config.FPS
 INK = "0x111111"
@@ -280,16 +280,17 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
     for f in [*config.FONTS_DIR.glob("*.otf"), *config.FONTS_DIR.glob("*.ttf")]:
         shutil.copyfile(f, fonts / f.name)
 
-    # animated templates render at 60 fps for smoother motion; the demo and UGC cuts stay at 30
+    # animated, UGC and avatar videos render at 60 fps in High quality (smoother motion and push-ins);
+    # the screen-demo cut stays on its 30 fps grid
     high = proj.get("style", {}).get("quality", "high") == "high"
-    out_fps = 60 if (mode == "animated" and high) else FPS
+    out_fps = 60 if (mode in ("animated", "ugc", "photo_avatar") and high) else FPS
     assets = proj.get("assets", [])
     avatar_videos: dict = {}
     end_card_on = proj.get("style", {}).get("end_card", True)
     extra = timeline.END_CARD_SECONDS if end_card_on else 0.0
     if mode == "ugc":
         progress(0.05, "Cutting your footage")
-        u = ugc.build(proj, beats, project_dir, build, FPS, end_card_on, timeline.END_CARD_SECONDS, log, progress)
+        u = ugc.build(proj, beats, project_dir, build, out_fps, end_card_on, timeline.END_CARD_SECONDS, log, progress)
         if not (config.MIN_SECONDS - 0.05 <= u.total <= config.MAX_SECONDS + 0.05):
             raise RenderError(
                 f"The edit runs {u.total:.1f}s; it must be {config.MIN_SECONDS:.0f}-{config.MAX_SECONDS:.0f}s. "
@@ -334,7 +335,7 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
     elif mode == "photo_avatar":
         # 2 (photo avatar). The local avatar model lip-syncs the photo to the narration; the
         # result is then cut exactly like UGC footage (layouts, punch-ins, captions).
-        u = _photo_avatar(proj, beats, nar, words, settings, project_dir, build, end_card_on, log, progress)
+        u = _photo_avatar(proj, beats, nar, words, settings, project_dir, build, end_card_on, log, progress, out_fps)
         avatar_videos = {"_avatar": u.video}
         if u.total < config.MIN_SECONDS - 0.05:
             raise RenderError(f"With the pauses trimmed the video runs {u.total:.1f}s. Add a sentence or two.")
@@ -483,16 +484,31 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
     return report
 
 
-def _photo_avatar(proj, beats, nar, words, settings, project_dir, build, end_card_on, log, progress):
-    photo = next((a for a in proj.get("assets", []) if a.get("role") == "presenter" and a["type"] == "image"
-                  and a.get("rights_confirmed")), None)
-    if not photo:
-        raise RenderError("Upload a presenter photo on the Footage tab, set it to Presenter and confirm the rights.")
+def _photo_avatar(proj, beats, nar, words, settings, project_dir, build, end_card_on, log, progress, fps=FPS):
+    saved = (proj.get("avatar") or {}).get("id")
+    if saved:
+        # a saved avatar from the library (imported once, reused in every project)
+        try:
+            av = avatars.load(saved)
+        except (OSError, ValueError):
+            raise RenderError("The chosen avatar no longer exists. Pick another on the Brief tab.")
+        why = avatars.usable_photo(av)
+        if why:
+            raise RenderError(" ".join(why))
+        photo_file = avatars.photo_path(av)
+        photo = {"focus": av.get("focus")}
+    else:
+        photo = next((a for a in proj.get("assets", []) if a.get("role") == "presenter" and a["type"] == "image"
+                      and a.get("rights_confirmed")), None)
+        if not photo:
+            raise RenderError("Pick a saved avatar on the Brief tab, or upload a presenter photo on the Footage tab "
+                              "(set it to Presenter and confirm the rights).")
+        photo_file = project_dir / photo["file"]
     st = avatar.status(settings)
     if not st["usable"]:
         raise RenderError("The AI photo avatar needs the local talking-avatar model: " + " ".join(st["reasons"]))
     progress(0.15, "Animating the presenter (local avatar model)")
-    raw = avatar.generate(settings, project_dir / photo["file"], Path(nar.wav), build / "avatar" / "presenter_raw.mp4", log)
+    raw = avatar.generate(settings, photo_file, Path(nar.wav), build / "avatar" / "presenter_raw.mp4", log)
     # use the narration itself as the clip's audio so the cut voice is exactly the mastered TTS
     clip = build / "avatar" / "presenter.mp4"
     media.run(["-i", str(raw), "-i", str(nar.wav), "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac",
@@ -512,7 +528,7 @@ def _photo_avatar(proj, beats, nar, words, settings, project_dir, build, end_car
         vis = b.get("visual") or {}
         ubeats.append({**b, "words": ws, "source": {"asset": "_avatar", "start": bt["speech_start"], "end": bt["speech_end"]},
                        "visual": {**vis, "layout": vis.get("layout") or "face"}})
-    return ugc.build(p2, ubeats, project_dir, build, FPS, end_card_on, timeline.END_CARD_SECONDS, log, progress,
+    return ugc.build(p2, ubeats, project_dir, build, fps, end_card_on, timeline.END_CARD_SECONDS, log, progress,
                      gap=None)
 
 

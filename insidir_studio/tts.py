@@ -27,33 +27,62 @@ LEAD_IN = 0.12
 
 # Best-sounding Kokoro voices first (Kokoro's own quality grades in brackets). The
 # "studio" entries blend two voice styles, which smooths out each voice's quirks.
+# Every English Kokoro voice, best first within each group. Grades are Kokoro's own
+# published quality grades (A best). Blends mix voice styles for a fuller, more natural read.
 VOICES = {
+    # men
     "studio_male": "Studio Male (US): Michael + Fenrir blend [recommended]",
     "studio_male_deep": "Studio Male Deep (US): Michael + Puck blend, lower and calmer",
+    "studio_male_narrator": "Studio Narrator (US): Fenrir + Michael + Echo, documentary",
+    "studio_male_uk": "Studio Male (UK): George + Fable blend",
     "am_michael": "Michael (US, steady) [C+]",
     "am_fenrir": "Fenrir (US, clear) [C+]",
     "am_puck": "Puck (US, lively) [C+]",
+    "am_echo": "Echo (US, airy) [D]",
+    "am_eric": "Eric (US, upbeat) [D]",
+    "am_liam": "Liam (US, young) [D]",
+    "am_onyx": "Onyx (US, deep) [D]",
     "bm_george": "George (UK) [C]",
+    "bm_fable": "Fable (UK, storyteller) [C]",
+    "bm_lewis": "Lewis (UK, deep) [D+]",
+    "bm_daniel": "Daniel (UK, crisp) [D]",
+    # women
     "studio_warm": "Studio Warm (US): Heart + Bella blend [recommended]",
+    "studio_bright": "Studio Bright (US): Bella + Nicole blend",
+    "studio_calm": "Studio Calm (US): Heart + Sarah blend, measured",
+    "studio_female_uk": "Studio Female (UK): Emma + Isabella blend",
     "af_heart": "Heart (US, warm) [A]",
     "af_bella": "Bella (US, bright) [A-]",
-    "studio_bright": "Studio Bright (US): Bella + Nicole blend",
     "af_nicole": "Nicole (US, soft, close-mic) [B-]",
+    "af_aoede": "Aoede (US, smooth) [C+]",
+    "af_kore": "Kore (US, confident) [C+]",
+    "af_sarah": "Sarah (US, calm) [C+]",
+    "af_nova": "Nova (US, crisp) [C]",
+    "af_alloy": "Alloy (US, neutral) [C]",
+    "af_sky": "Sky (US, light) [C-]",
+    "af_jessica": "Jessica (US, casual) [D]",
+    "af_river": "River (US, relaxed) [D]",
     "bf_emma": "Emma (UK) [B-]",
+    "bf_isabella": "Isabella (UK, polished) [C]",
+    "bf_alice": "Alice (UK, clear) [D]",
+    "bf_lily": "Lily (UK, soft) [D]",
 }
 BLENDS = {
     "studio_male": [("am_michael", 0.55), ("am_fenrir", 0.45)],
     "studio_male_deep": [("am_michael", 0.5), ("am_puck", 0.5)],
+    "studio_male_narrator": [("am_fenrir", 0.45), ("am_michael", 0.4), ("am_echo", 0.15)],
+    "studio_male_uk": [("bm_george", 0.6), ("bm_fable", 0.4)],
     "studio_warm": [("af_heart", 0.65), ("af_bella", 0.35)],
     "studio_bright": [("af_bella", 0.6), ("af_nicole", 0.4)],
+    "studio_calm": [("af_heart", 0.55), ("af_sarah", 0.45)],
+    "studio_female_uk": [("bf_emma", 0.6), ("bf_isabella", 0.4)],
 }
 
 
 def gender_of(voice: str) -> str:
-    """'man' or 'woman' for every voice in VOICES."""
-    if voice.startswith("studio_"):
-        return "man" if voice.startswith("studio_male") else "woman"
-    return "man" if voice[1:2] == "m" else "woman"
+    """'man' or 'woman' for every voice in VOICES (a blend takes its first voice's)."""
+    base = BLENDS[voice][0][0] if voice in BLENDS else voice
+    return "man" if base[1:2] == "m" else "woman"
 
 
 # the best voice for each choice in the studio's Man / Woman switch

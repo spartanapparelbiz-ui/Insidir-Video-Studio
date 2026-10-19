@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import animate, avatar, compliance, config, fonts, media, project, render, script_writer, tts, ugc, whisper_align
+from . import animate, avatar, avatars, compliance, config, fonts, media, project, render, script_writer, tts, ugc, whisper_align
 
 JOBS: dict[str, dict] = {}
 RENDER_LOCK = threading.Lock()
@@ -245,6 +245,68 @@ class Handler(BaseHTTPRequestHandler):
         body["created"] = cur.get("created")
         return self._json(project.save(d, body))
 
+    def _receive_upload(self, into: Path) -> Path:
+        """Stream the request body to a temp file inside `into` (the caller moves or deletes it)."""
+        n = int(self.headers.get("Content-Length") or 0)
+        if n <= 0:
+            raise ApiError(400, "Empty upload")
+        if n > 4 * 1024 ** 3:
+            raise ApiError(413, "Files up to 4 GB")
+        into.mkdir(parents=True, exist_ok=True)
+        tmp = Path(tempfile.mkdtemp(dir=into)) / "upload"
+        with open(tmp, "wb") as f:
+            left = n
+            while left > 0:
+                chunk = self.rfile.read(min(1 << 20, left))
+                if not chunk:
+                    break
+                f.write(chunk)
+                left -= len(chunk)
+        return tmp
+
+    def _avatars(self, method: str, sub: list[str], q: dict) -> None:
+        """The saved-avatar library, shared by every project."""
+        if method == "GET" and not sub:
+            return self._json({"avatars": avatars.list_avatars(), "characters": animate.CHARACTERS})
+        if method == "POST" and not sub:
+            kind = q.get("kind") or "photo"
+            tmp = self._receive_upload(avatars.avatars_dir() / "_incoming") if kind == "photo" else None
+            try:
+                av = avatars.create(q.get("name") or "", kind, tmp, q.get("filename") or "", q.get("character") or "dot",
+                                    q.get("voice"))
+            except ValueError as e:
+                raise ApiError(400, str(e))
+            finally:
+                if tmp:
+                    shutil.rmtree(tmp.parent, ignore_errors=True)
+            return self._json(av)
+        try:
+            av = avatars.load(sub[0])
+        except (OSError, ValueError):
+            raise ApiError(404, "No such avatar")
+        if method == "PUT" and len(sub) == 1:
+            return self._json(avatars.update(av["id"], self._body_json()))
+        if method == "DELETE" and len(sub) == 1:
+            avatars.delete(av["id"])
+            return self._json({"deleted": av["id"]})
+        if method == "GET" and sub[1:] == ["photo"] and av.get("photo"):
+            return self._serve_file(avatars.photo_path(av))
+        if method == "POST" and sub[1:] == ["voice-preview"]:
+            body = self._body_json()
+            text = (body.get("text") or f"Hi, I'm {av['name']}. This is how I'll sound in your videos.").strip()[:400]
+            out = avatars.avatar_dir(av["id"]) / "previews" / f"{av['voice']}-{uuid.uuid4().hex[:6]}.wav"
+            old = sorted((out.parent).glob("*.wav")) if out.parent.exists() else []
+            for f in old[:-4]:
+                f.unlink(missing_ok=True)
+            tts.preview(text, av["voice"], float(av.get("speed") or 1.0), out)
+            return self._json({"url": f"/api/avatars/{av['id']}/preview/{out.name}"})
+        if method == "GET" and len(sub) == 3 and sub[1] == "preview":
+            f = avatars.avatar_dir(av["id"]) / "previews" / Path(sub[2]).name
+            if not f.exists():
+                raise ApiError(404, "Not found")
+            return self._serve_file(f, "audio/wav")
+        raise ApiError(404, "Unknown avatar endpoint")
+
     def _api(self, method: str, p: list[str], q: dict) -> None:
         route = (method, *p[:1])
 
@@ -267,6 +329,8 @@ class Handler(BaseHTTPRequestHandler):
         if route == ("GET", "voices"):
             return self._json({"voices": tts.VOICES, "gender": {v: tts.gender_of(v) for v in tts.VOICES},
                                "defaults": tts.DEFAULT_BY_GENDER})
+        if p[:1] == ["avatars"]:
+            return self._avatars(method, p[1:], q)
         if method == "GET" and p[:1] == ["jobs"] and len(p) == 2:
             job = JOBS.get(p[1])
             if not job:

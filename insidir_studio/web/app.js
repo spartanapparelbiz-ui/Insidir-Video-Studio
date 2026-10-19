@@ -74,6 +74,7 @@ async function boot() {
       api("GET", "status"), api("GET", "settings"), api("GET", "facts"), api("GET", "voices"),
     ]);
     S.voices = v.voices; S.voiceGender = v.gender; S.voiceDefaults = v.defaults;
+    await loadAvatars();
   } catch (e) { toast("Could not reach the studio: " + e.message, true); return; }
   renderPills();
   document.getElementById("ver").textContent = "v" + S.status.version;
@@ -181,6 +182,7 @@ function tabBrief(el) {
   const range = bind("target_seconds", h("input", { type: "range", min: 21, max: 33, step: 1, value: b.target_seconds }));
   range.addEventListener("input", () => (secs.textContent = range.value + "s"));
   el.append(stylePicker());
+  if (P().mode === "photo_avatar" || (P().mode === "animated" && P().template === "avatar-host")) el.append(avatarPicker());
   el.append(h("div", { class: "panel" },
     h("h2", {}, "What is this video about?"),
     field("Video name", (() => { const i = h("input", { type: "text", value: P().name }); i.oninput = () => { P().name = i.value; save(); }; return i; })()),
@@ -295,9 +297,9 @@ function assetCard(a) {
       } }, "Remove")));
 }
 
-function focusPicker(asset, t, cur, onset) {
+function focusPicker(asset, t, cur, onset, url) {
   const focus = h("div", { class: "focus", title: "Click to set the focus point" });
-  focus.style.backgroundImage = `url(/api/projects/${P().id}/thumb/${asset.id}?t=${t})`;
+  focus.style.backgroundImage = `url(${url || `/api/projects/${P().id}/thumb/${asset.id}?t=${t}`})`;
   focus.append(h("div", { class: "dot", style: { left: cur[0] * 100 + "%", top: cur[1] * 100 + "%" } }));
   focus.onclick = e => {
     const r = focus.getBoundingClientRect();
@@ -700,6 +702,7 @@ function tabLook(el) {
   const voice = h("select", { onchange: e => { v.voice = e.target.value; save(); } },
     Object.entries(S.voices).filter(([id]) => S.voiceGender[id] === gender)
       .map(([id, name]) => h("option", { value: id, selected: v.voice === id }, name)));
+  const chosenAvatar = (S.avatars || []).find(a => a.id === (p.avatar || {}).id);
   const pick = g => () => { if (gender !== g) { v.voice = S.voiceDefaults[g]; save(); renderProject(); } };
   const genderSwitch = h("div", { class: "seg" },
     h("button", { class: gender === "man" ? "on" : "", onclick: pick("man") }, "Man"),
@@ -729,10 +732,6 @@ function tabLook(el) {
   p.chat = p.chat || { me: "Insidir", them: "Alex" };
   const chatInput = (k) => { const i = h("input", { type: "text", value: p.chat[k], maxlength: 24 }); i.oninput = () => { p.chat[k] = i.value; save(); }; return i; };
   el.append(...[
-    p.mode === "animated" && p.template === "avatar-host" ? h("div", { class: "panel" }, h("h2", {}, "Host"),
-      h("p", { class: "hint" }, "A cartoon character drawn on this PC. Its mouth follows the voice frame by frame; it blinks, nods and gestures on each beat."),
-      h("div", { class: "seg" }, Object.entries(chars).map(([id, name]) =>
-        h("button", { class: p.avatar.character === id ? "on" : "", onclick: () => { p.avatar.character = id; save(); renderProject(); } }, name)))) : null,
     p.mode === "animated" && p.template === "chat" ? h("div", { class: "panel" }, h("h2", {}, "Chat"),
       h("div", { class: "grid2" }, field("Person asking (THEM)", chatInput("them")), field("Person answering (ME)", chatInput("me"))),
       h("p", { class: "hint" }, "Set each beat's Card to ME or THEM on the Script tab; otherwise they alternate.")) : null,
@@ -740,6 +739,7 @@ function tabLook(el) {
       h("p", { class: "hint" }, "UGC uses your own recorded voice. It is cleaned on this PC: steady background noise removed, EQ, de-essing, compression and -14 LUFS loudness. No AI voice is added.")) : null,
     p.mode === "ugc" ? null : h("div", { class: "panel" }, h("h2", {}, "Voice"),
       h("p", { class: "hint" }, "Kokoro-82M runs on this computer (Apache-2.0, commercial use allowed). Every render is mastered like a voice-over: EQ, de-essing, compression and -14 LUFS loudness. \"Insidir\" is pronounced \"insider\"."),
+      chosenAvatar ? h("div", { class: "notice ok" }, `${chosenAvatar.name} presents this video. Their saved voice was applied; changes here affect this video only (edit the avatar under Avatars to change it everywhere).`) : null,
       field("Narrator", genderSwitch),
       h("div", { class: "grid2" }, field("Kokoro voice", voice), h("label", { class: "field" }, h("span", {}, "Speaking rate"), h("div", { class: "row" }, speed, speedLabel))),
       field("Preview line", sample), play, audio),
@@ -887,11 +887,138 @@ async function renderRenders() {
   }
 }
 
+// ------------------------------------------------------------ avatars (saved once, used everywhere)
+function voiceSelect(cur, onchange) {
+  const group = (g, label) => h("optgroup", { label }, Object.entries(S.voices).filter(([id]) => S.voiceGender[id] === g)
+    .map(([id, name]) => h("option", { value: id, selected: cur === id }, name)));
+  return h("select", { onchange: e => onchange(e.target.value) }, group("man", "Men"), group("woman", "Women"));
+}
+
+async function loadAvatars() {
+  const r = await api("GET", "avatars");
+  S.avatars = r.avatars; S.characters = r.characters;
+  return S.avatars;
+}
+
+function avatarThumb(av, cls = "av-thumb") {
+  if (av.kind === "photo") return h("div", { class: cls, style: { backgroundImage: `url(/api/avatars/${av.id}/photo)`,
+    backgroundPosition: `${(av.focus || [0.5, 0.4])[0] * 100}% ${(av.focus || [0.5, 0.4])[1] * 100}%` } });
+  return h("div", { class: cls, style: { backgroundImage: `url(/avatars/${av.character}.jpg)` } });
+}
+
+async function modalAvatars(el) {
+  el.append(h("h2", {}, "Avatars"),
+    h("p", { class: "hint" }, "Import a presenter once and use it in every video. Each avatar keeps its own voice. Photo avatars are lip-synced by the local talking-avatar model (Settings) and always labelled \"AI-generated presenter\"; cartoon hosts run on any PC."));
+  const list = h("div", { class: "av-grid" });
+  const name = h("input", { type: "text", placeholder: "Name, e.g. Jordan" });
+  const file = h("input", { type: "file", accept: "image/png,image/jpeg,image/webp", style: { display: "none" } });
+  const character = h("select", {}, Object.entries(S.characters || { dot: "Dot" }).map(([id, n]) => h("option", { value: id }, n)));
+  const status = h("span", { class: "hint" });
+  file.onchange = async () => {
+    const f = file.files[0]; if (!f) return;
+    status.textContent = "Importing…";
+    const q = new URLSearchParams({ kind: "photo", name: name.value || f.name.replace(/\.[^.]+$/, ""), filename: f.name, voice: S.voiceDefaults.man });
+    const r = await fetch(`/api/avatars?${q}`, { method: "POST", body: f });
+    const data = await r.json().catch(() => ({}));
+    status.textContent = "";
+    if (!r.ok) return toast(data.error || "Import failed", true);
+    toast(`Saved "${data.name}". Confirm consent below, pick a voice, and click the face.`);
+    name.value = ""; file.value = ""; await draw();
+  };
+  const addCartoon = async () => {
+    const q = new URLSearchParams({ kind: "cartoon", name: name.value || character.selectedOptions[0].textContent.split(" ")[0], character: character.value, voice: S.voiceDefaults.man });
+    const r = await fetch(`/api/avatars?${q}`, { method: "POST" });
+    if (!r.ok) return toast((await r.json()).error, true);
+    name.value = ""; await draw();
+  };
+  el.append(h("div", { class: "panel" }, h("h3", {}, "New avatar"),
+    h("div", { class: "row" }, name,
+      h("button", { class: "primary", onclick: () => file.click() }, ic("avatar"), "Import a photo"), file,
+      h("span", { class: "hint" }, "or"), character, h("button", { onclick: addCartoon }, "Add cartoon host"), status),
+    h("p", { class: "hint" }, "Best results: a sharp, front-facing head-and-shoulders photo, 1024 px or larger, even light, mouth closed, nothing covering the face. Only use a real person's photo with their written consent.")),
+    list);
+  const draw = async () => {
+    await loadAvatars();
+    list.innerHTML = "";
+    if (!S.avatars.length) list.append(h("p", { class: "hint" }, "No avatars yet."));
+    for (const av of S.avatars) list.append(avatarCard(av, draw));
+  };
+  await draw();
+}
+
+function avatarCard(av, redraw) {
+  const put = async (changes) => { Object.assign(av, await api("PUT", `avatars/${av.id}`, changes)); };
+  const nm = h("input", { type: "text", value: av.name });
+  nm.onchange = () => put({ name: nm.value });
+  const audio = h("audio", { controls: true });
+  const play = h("button", { class: "small", onclick: async () => {
+    play.disabled = true;
+    try { const r = await api("POST", `avatars/${av.id}/voice-preview`, {}); audio.src = r.url; audio.play(); } catch (e) { toast(e.message, true); }
+    play.disabled = false;
+  } }, ic("voice"), "Hear voice");
+  const speed = h("input", { type: "range", min: 0.85, max: 1.2, step: 0.01, value: av.speed || 1 });
+  speed.onchange = () => put({ speed: Number(speed.value) });
+  const check = (k, text) => h("label", { class: "check" + (av[k] ? " on" : "") },
+    h("input", { type: "checkbox", checked: av[k], onchange: async e => { await put({ [k]: e.target.checked }); redraw(); } }), text);
+  let face = avatarThumb(av);
+  if (av.kind === "photo") {
+    face = focusPicker({ id: av.id, width: av.width, height: av.height }, 0, av.focus || [0.5, 0.4],
+      async f => { await put({ focus: f }); redraw(); }, `/api/avatars/${av.id}/photo`);
+    face.title = "Click the middle of the face";
+  }
+  const ok = av.kind === "cartoon" || av.consent_confirmed || av.ai_generated;
+  return h("div", { class: "av-card" + (ok ? "" : " warn") },
+    face,
+    h("div", { class: "av-body" },
+      nm,
+      h("div", { class: "hint" }, av.kind === "photo" ? `Photo avatar · ${av.width}×${av.height}` : `Cartoon host · ${(S.characters || {})[av.character] || av.character}`),
+      field("Voice", voiceSelect(av.voice, v => put({ voice: v }))),
+      h("div", { class: "row" }, h("span", { class: "hint" }, "Rate"), speed, play),
+      audio,
+      av.kind === "photo" ? check("consent_confirmed", "This is me, or the person shown gave written consent to be animated") : null,
+      av.kind === "photo" ? check("ai_generated", "The face itself is AI-generated (no real person)") : null,
+      h("div", { class: "row" }, h("button", { class: "small danger", onclick: async () => {
+        if (!confirm(`Delete the avatar "${av.name}"? Projects using it will need another.`)) return;
+        await api("DELETE", `avatars/${av.id}`); redraw();
+      } }, ic("trash"), "Delete"))));
+}
+
+// Brief tab: choose which saved avatar presents this video
+function avatarPicker() {
+  const p = P();
+  const cartoonMode = p.mode === "animated" && p.template === "avatar-host";
+  const kind = cartoonMode ? "cartoon" : "photo";
+  p.avatar = p.avatar || {};
+  const wrap = h("div", { class: "av-pick" });
+  const draw = () => {
+    wrap.innerHTML = "";
+    const mine = (S.avatars || []).filter(a => a.kind === kind);
+    const cards = mine.map(av => h("button", { class: "av-choice" + (p.avatar.id === av.id ? " on" : ""), onclick: () => {
+      p.avatar = { id: av.id, character: av.character };
+      p.voice = { voice: av.voice, speed: av.speed || 1 };
+      save(); draw(); toast(`${av.name} will present this video, in their saved voice`);
+    } }, avatarThumb(av, "av-thumb sm"), h("b", {}, av.name),
+      av.kind === "photo" && !(av.consent_confirmed || av.ai_generated) ? h("em", { class: "tnote" }, "Confirm consent") : null));
+    if (cartoonMode) {
+      // the built-in hosts, usable without saving anything
+      for (const [id, n] of Object.entries(S.characters || {})) {
+        cards.push(h("button", { class: "av-choice" + (!p.avatar.id && (p.avatar.character || "dot") === id ? " on" : ""), onclick: () => { p.avatar = { character: id }; save(); draw(); } },
+          h("div", { class: "av-thumb sm", style: { backgroundImage: `url(/avatars/${id}.jpg)` } }), h("b", {}, n.split(" ")[0])));
+      }
+    }
+    wrap.append(...cards, h("button", { class: "av-choice add", onclick: () => openModal("avatars") }, h("div", { class: "av-thumb sm plus" }, "+"), h("b", {}, kind === "photo" ? "Import a photo" : "Save a host")));
+  };
+  loadAvatars().then(draw);
+  return h("div", { class: "panel" }, h("h2", {}, cartoonMode ? "Host" : "Presenter"),
+    h("p", { class: "hint" }, cartoonMode ? "Pick a host. Saved hosts bring their own voice." : "Pick a saved photo avatar. It brings its own voice; change it any time under Avatars."),
+    wrap);
+}
+
 // ------------------------------------------------------------ modals
 function openModal(which) {
   const body = document.getElementById("modal-body");
   body.innerHTML = "";
-  (which === "facts" ? modalFacts : modalSettings)(body);
+  ({ facts: modalFacts, settings: modalSettings, avatars: modalAvatars })[which](body);
   document.getElementById("modal").hidden = false;
 }
 function closeModal() { document.getElementById("modal").hidden = true; }
