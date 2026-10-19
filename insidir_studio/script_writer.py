@@ -26,12 +26,34 @@ SCHEMA_EXAMPLE = {
     ],
 }
 
+UGC_EXAMPLE = {
+    "title": "How I read an insider trade",
+    "facts_used": ["form4_deadline"],
+    "beats": [
+        {"id": "b1", "text": "Hook line said straight to camera.", "visual": {"layout": "face", "shot": ""}, "overlay": ""},
+        {"id": "b2", "text": "...", "visual": {"layout": "split", "asset": "a1b2c3d4", "shot": "the filing feed"}, "overlay": "3-5 word headline"},
+    ],
+}
+
 HOOKS = {
     "question": "Open with a sharp question that opens a curiosity gap the video pays off later.",
     "myth": "Open by correcting a common misconception about insider trades (truthfully).",
     "how-to": "Open by promising a concrete skill the video teaches.",
     "pov": "Open with a 'POV:' style relatable moment, without claiming personal results.",
 }
+
+
+VOICE_LINE = {
+    "demo": "Narration is read by an AI voice",
+    "animated": "Narration is read by an AI voice",
+    "photo_avatar": "Narration is read by an AI voice and lip-synced by an AI-generated presenter, who is labelled as AI on screen",
+    "ugc": "These are talking points the creator will say on camera in their own words and voice",
+}
+RULE5_AI = ('5. No first-person testimonials or personal results ("I made", "I\'ve been using", "my portfolio"). '
+            'The voice is AI, so these would be made up. Speak to the viewer ("you") or describe what is on screen.')
+RULE5_REAL = ('5. A real person says these lines, so first person is fine for how they research ("I check the Form 4 first"), '
+              'but never personal results or returns ("I made", "my portfolio grew"). Mark nothing as a testimonial the '
+              'creator has not actually experienced.')
 
 
 def build_prompt(proj: dict, facts: dict) -> str:
@@ -51,6 +73,7 @@ def build_prompt(proj: dict, facts: dict) -> str:
     fact_lines = "\n".join(f'- {f["id"]}: {f["text"]}' for f in facts.get("facts", []))
     has_presenter = any(a["role"] == "presenter" for a in assets)
     hook = HOOKS.get(brief.get("hook_style") or "question", HOOKS["question"])
+    mode = proj.get("mode") or "demo"
     return f"""You are writing a short vertical UGC-style video script for Insidir, a research tool for reading SEC insider-trading filings (Form 4).
 
 VIDEO
@@ -60,7 +83,7 @@ VIDEO
 - Length: {secs} seconds of narration, so {words_lo}-{words_hi} words in total.
 - Hook: {hook}
 - Call to action: {brief.get('cta') or 'Try Insidir'}
-- Narration is read by an AI voice{'; an AI-generated presenter may appear on screen and is labelled as AI' if has_presenter else ''}. Write "Insidir" as spelled; it is pronounced "insider".
+- {VOICE_LINE.get(mode, VOICE_LINE['demo']) + ('; an AI-generated presenter may appear on screen and is labelled as AI' if has_presenter and mode == 'demo' else '')}. Write "Insidir" as spelled; it is pronounced "insider".
 
 FOOTAGE AVAILABLE (refer to these ids in visual.asset when one fits; otherwise leave asset out):
 {footage}
@@ -73,7 +96,7 @@ RULES (a script that breaks any of these is rejected automatically):
 2. No promises or hints of returns, profits, beating the market, or getting rich. No "guaranteed", "risk-free", "insider tips", "secret", "before Wall Street".
 3. Never tell the viewer to buy, sell or short anything, and never predict a price. Do not name a stock as a pick.
 4. Form 4s are public filings. Never imply nonpublic or secret information.
-5. No first-person testimonials or personal results ("I made", "I've been using", "my portfolio"). The voice is AI, so these would be made up. Speak to the viewer ("you") or describe what is on screen.
+{RULE5_REAL if mode == 'ugc' else RULE5_AI}
 6. Do not claim real-time data. Prices are delayed; filings are imported on a schedule.
 7. Do not write a disclaimer; the video adds "Research tool. Not investment advice." itself.
 8. Sound like a real person talking to a friend: short sentences, contractions, one idea per beat. No hashtags, emojis or stage directions inside "text".
@@ -83,7 +106,25 @@ RULES (a script that breaks any of these is rejected automatically):
 
 
 def structure_for(proj: dict) -> str:
-    if (proj.get("mode") or "demo") != "animated":
+    mode = proj.get("mode") or "demo"
+    if mode == "ugc":
+        return """STRUCTURE
+- These are lines for a teleprompter. 5 to 8 beats, each one or two short spoken sentences.
+- Beat 1 is the hook (under 12 words), said straight to camera. The last beat is the call to action.
+- Write how people actually talk: contractions, small pauses, no corporate words.
+- "visual" may suggest a "layout": face (talking head), split (Insidir screen on top, face below), bubble (Insidir screen with the face in a circle) or screen (screen only), plus a "shot" of what the screen should show.
+
+Reply with ONLY a JSON object in this shape, no prose before or after:
+""" + json.dumps(UGC_EXAMPLE, indent=2)
+    if mode == "photo_avatar":
+        return """STRUCTURE
+- 5 to 8 beats. Beat 1 is the hook (under 12 words), said to camera by the presenter. The last beat is the call to action.
+- Each beat: "text" (spoken words) and "visual" with "layout" one of face | split | bubble | screen, an "asset" id from the footage list for every layout except face, a "shot" of what the screen shows, and an optional "overlay" headline of 2-5 words (use for 2-3 beats).
+- Mix layouts: start on face, show the real product in the middle, end on face.
+
+Reply with ONLY a JSON object in this shape, no prose before or after:
+""" + json.dumps(UGC_EXAMPLE, indent=2)
+    if mode != "animated":
         return f"""STRUCTURE
 - 5 to 8 beats. Beat 1 is the hook (under 12 words). The last beat is the call to action.
 - Each beat: "text" (spoken words), "visual" with "kind" one of screen | image | presenter | title, an optional "asset" id from the footage list, a short "shot" description, and an optional "overlay" headline of 2-5 words shown on screen (use for 2-4 beats, not all).
@@ -167,7 +208,8 @@ def normalize(script: dict, assets: list[dict] | None = None) -> dict:
                        "icon": vis.get("icon") if vis.get("icon") in animate.ICONS else "",
                        "pose": vis.get("pose") if vis.get("pose") in animate.POSES else "",
                        "label": str(vis.get("label") or "").strip().upper()[:12],
-                       "emphasis": str(vis.get("emphasis") or "").strip()[:28]},
+                       "emphasis": str(vis.get("emphasis") or "").strip()[:28],
+                       "layout": vis.get("layout") if vis.get("layout") in ("face", "split", "bubble", "screen") else ""},
             "overlay": str(b.get("overlay") or "")[:40],
         })
     if not beats:
@@ -253,6 +295,32 @@ TEMPLATES = [
 
 # Offline drafts for the animated templates: (text, headline, icon, pose, label, emphasis, use_asset)
 ANIMATED_DRAFTS = {
+    "avatar-host": {
+        "title": "What insiders have to tell you",
+        "facts_used": ["form4_deadline", "form4_public", "purchases_apart", "links_to_filing"],
+        "beats": [
+            ("Want to know when executives buy their own stock?", "Insiders file too", "eye", "wave", "", "", False),
+            ("They have to report it on a Form 4.", "Form 4", "form", "explain", "", "", False),
+            ("Usually within two business days.", "The deadline", "clock", "point", "", "2 business days", False),
+            ("And it's public. Anyone can read it.", "Public record", "", "point", "", "", True),
+            ("Insidir keeps real buys apart from awards.", "Real buys only", "", "point", "", "", True),
+            ("Every line links to the original filing.", "Check the source", "link", "think", "", "", False),
+            ("Go read them yourself at insidir dot com.", "insidir.com", "magnifier", "cheer", "", "", False),
+        ],
+    },
+    "chat": {
+        "title": "Wait, insiders have to report that?",
+        "facts_used": ["form4_deadline", "form4_public", "purchases_apart", "links_to_filing"],
+        "beats": [
+            ("Wait, do executives have to say when they buy their own stock?", "", "", "", "THEM", "", False),
+            ("Yep. It's called a Form 4, and it's public.", "", "", "", "ME", "", False),
+            ("How fast?", "", "", "", "THEM", "", False),
+            ("Usually within two business days.", "Form 4 deadline", "", "", "ME", "2 business days", False),
+            ("Where do I even find those?", "", "", "", "THEM", "", False),
+            ("Insidir puts them in one feed, buys apart from awards.", "", "", "", "ME", "", True),
+            ("And every line links to the real filing. Try insidir dot com.", "", "", "", "ME", "", False),
+        ],
+    },
     "viral": {
         "title": "The trades executives have to report",
         "facts_used": ["form4_deadline", "form4_public", "purchases_apart", "links_to_filing"],
@@ -347,6 +415,22 @@ def animated_draft(proj: dict, facts: dict) -> dict:
                      proj.get("assets", []))
 
 
+LAYOUT_CYCLE = ["face", "split", "face", "bubble", "screen", "split", "face", "face"]
+
+
+def presenter_draft(proj: dict, script: dict) -> dict:
+    """Give a demo draft talking-head layouts: face on the hook and the call to action,
+    the real product in between."""
+    screens = sorted([a for a in proj.get("assets", []) if a.get("role") in ("screen", "image") and a.get("rights_confirmed")],
+                     key=lambda a: not a.get("genuine"))
+    n = len(script["beats"])
+    for i, b in enumerate(script["beats"]):
+        layout = "face" if i in (0, n - 1) or not screens else LAYOUT_CYCLE[i % len(LAYOUT_CYCLE)]
+        b["visual"].update({"kind": "ugc", "layout": layout,
+                            "asset": screens[i % len(screens)]["id"] if layout != "face" else None})
+    return script
+
+
 def template_script(proj: dict, facts: dict, variant: int = 0) -> dict:
     if (proj.get("mode") or "demo") == "animated":
         return animated_draft(proj, facts)
@@ -359,8 +443,12 @@ def template_script(proj: dict, facts: dict, variant: int = 0) -> dict:
         "beats": [{"text": text, "visual": {"kind": kind, "asset": asset or None}, "overlay": ov}
                   for text, kind, asset, ov in t["beats"]],
     }
-    return normalize(script, proj.get("assets", []))
+    script = normalize(script, proj.get("assets", []))
+    if proj.get("mode") in ("ugc", "photo_avatar"):
+        script = presenter_draft(proj, script)
+    return script
 
 
 def lint_reply(script: dict, proj: dict) -> list[dict]:
-    return compliance.lint(script, compliance.load_facts(), proj.get("assets", []))
+    from . import ugc
+    return compliance.lint(script, compliance.load_facts(), proj.get("assets", []), real_person=ugc.real_person(proj))

@@ -53,7 +53,7 @@ TESTIMONIAL = [
 
 COMMON_ACRONYMS = {
     "SEC", "CEO", "CFO", "COO", "CTO", "AI", "US", "USA", "EDGAR", "OK", "TV", "PDF", "FAQ", "ETF", "IPO",
-    "NYSE", "TTM", "EPS", "XBRL", "API", "UI", "FTC", "I", "A", "TL", "DR", "TLDR", "MYTH", "FACT", "SEC'S",
+    "NYSE", "TTM", "EPS", "XBRL", "API", "UI", "FTC", "I", "A", "TL", "DR", "TLDR", "MYTH", "FACT", "SEC'S", "ME", "THEM", "UGC", "POV",
 }
 
 NUMBER_WORDS = {
@@ -150,8 +150,13 @@ def _is_myth(where: str, script: dict) -> bool:
     return False
 
 
-def lint(script: dict, facts: dict | None = None, assets: list[dict] | None = None) -> list[dict]:
+def lint(script: dict, facts: dict | None = None, assets: list[dict] | None = None,
+         real_person: bool = False) -> list[dict]:
+    """real_person: the words are spoken by a real creator on camera (UGC), so honest
+    first-person experience is allowed, with a reminder to disclose any payment."""
     facts = facts if facts is not None else load_facts()
+    # sentences cut out of a UGC edit are not in the video
+    script = {**script, "beats": [b for b in script.get("beats", []) if b.get("keep", True)]}
     allowed = approved_numbers(facts)
     known_fact_ids = {f["id"] for f in facts.get("facts", [])}
     issues: list[dict] = []
@@ -176,7 +181,10 @@ def lint(script: dict, facts: dict | None = None, assets: list[dict] | None = No
                     add("error", where, f'"{m.group(0)}": {why}')
         for pat in TESTIMONIAL:
             m = re.search(pat, text, re.I)
-            if m:
+            if m and real_person:
+                add("warning", where, f'"{m.group(0)}": only say this if it is true for you. If you are paid, '
+                    'got free access or earn a referral fee, disclose it in the video and caption (#ad).')
+            elif m:
                 add("error", where, f'"{m.group(0)}": first-person testimonial. The narration is an AI voice, so personal experience would be fabricated. Use "you" or describe the product.')
         for num in find_numbers(text):
             n = _norm_num(num)

@@ -18,8 +18,8 @@ sys.path.insert(0, str(ROOT))
 TMP = Path(tempfile.mkdtemp(prefix="ivs-test-"))
 os.environ["INSIDIR_STUDIO_HOME"] = str(TMP)
 
-from insidir_studio import (animate, captions, sound, compliance, config, media, project, render,  # noqa: E402
-                            script_writer, timeline, tts, whisper_align)
+from insidir_studio import (animate, avatar, captions, sound, compliance, config, media, project, render,  # noqa: E402
+                            script_writer, timeline, tts, ugc, whisper_align)
 
 FACTS = compliance.load_facts(config.DEFAULT_FACTS)
 
@@ -203,6 +203,100 @@ class WhisperMatchTests(unittest.TestCase):
         self.assertEqual(whisper_align._norm("It's"), "its")
 
 
+def _words(text, start, gap_after=None):
+    """Fake word timings: 0.3 s per word, with an optional pause after word index -> seconds."""
+    out, t = [], start
+    for i, w in enumerate(text.split()):
+        out.append({"text": w, "start": round(t, 3), "end": round(t + 0.26, 3)})
+        t += 0.3 + (gap_after or {}).get(i, 0.0)
+    return out
+
+
+class UgcTests(unittest.TestCase):
+    def test_sentences_split_on_punctuation_and_pauses(self):
+        ws = _words("Hi there. This is long", 0.0, {2: 1.2}) + _words("and done.", 3.0)
+        groups = ugc.sentences(ws)
+        self.assertEqual([" ".join(w["text"] for w in g) for g in groups], ["Hi there.", "This", "is long and done."])
+
+    def test_plan_cuts_pauses_and_fillers_into_jump_cuts(self):
+        ws = _words("So um the filing is public", 1.0, {2: 0.9})
+        beats = [{"id": "b1", "keep": True, "words": ws, "source": {"asset": "c1"},
+                  "visual": {"layout": "face"}},
+                 {"id": "b2", "keep": False, "words": _words("cut me", 5.0), "source": {"asset": "c1"}, "visual": {}}]
+        segs = ugc.plan(beats, 30)
+        # "um" is dropped (its gap becomes a cut), the long pause is a cut, b2 is left out
+        self.assertEqual([" ".join(w["text"] for w in ws if sg.start <= w["start"] < sg.end) for sg in segs],
+                         ["So", "the", "filing is public"])
+        self.assertEqual([s.zoom for s in segs], [1.0, 1.16, 1.0])  # alternate framing on every cut
+        t = 0.0
+        for sg in segs:
+            self.assertAlmostEqual(sg.out_start, t)
+            self.assertEqual(sg.frames, int((sg.end - sg.start) * 30 + 1e-6))
+            t += sg.frames / 30
+        self.assertEqual(len(ugc.plan(beats, 30, gap=None)), 1)  # photo avatar: sentences stay whole
+
+    def test_layout_without_screen_falls_back_to_face(self):
+        beats = [{"id": "b1", "words": _words("hello there", 0.2), "source": {"asset": "c1"},
+                  "visual": {"layout": "split", "asset": None}}]
+        self.assertEqual(ugc.plan(beats, 30)[0].layout, "face")
+
+    def test_caption_fixes_keep_timing(self):
+        b = {"text": "Insidir shows filings", "words": _words("Insider shows filings", 0.0)}
+        self.assertEqual([w["text"] for w in ugc.corrected_words(b)], ["Insidir", "shows", "filings"])
+        b["text"] = "Insidir shows every filing"   # word count changed: keep what was said
+        self.assertEqual(ugc.corrected_words(b)[0]["text"], "Insider")
+        self.assertEqual(ugc.tidy("every form four is on edgar"), "every Form 4 is on EDGAR")
+
+    def test_real_person_may_speak_in_first_person(self):
+        script = {"title": "", "facts_used": [], "beats": [
+            {"id": "b1", "text": "I use Insidir to read the Form 4 before I research a company, and I check the source filing every time."},
+            {"id": "b2", "text": "Each line links to the original filing on EDGAR so you can read it yourself too, which is how I like it."}]}
+        ai = compliance.lint(script, FACTS)
+        real = compliance.lint(script, FACTS, real_person=True)
+        self.assertTrue(any("testimonial" in i["message"] for i in ai if i["level"] == "error"))
+        self.assertFalse(any("testimonial" in i["message"] for i in real if i["level"] == "error"))
+        self.assertTrue(any("#ad" in i["message"] for i in real))
+        # results are still blocked for real people
+        script["beats"][0]["text"] = "I made huge returns with this."
+        self.assertTrue(compliance.has_errors(compliance.lint(script, FACTS, real_person=True)))
+
+    def test_presenter_drafts_mix_layouts(self):
+        proj = {"mode": "photo_avatar", "assets": [{"id": "s1", "role": "screen", "type": "video", "rights_confirmed": True,
+                                                     "genuine": True, "label": "feed", "file": "x"}]}
+        sc = script_writer.template_script(proj, FACTS, 0)
+        layouts = [b["visual"]["layout"] for b in sc["beats"]]
+        self.assertEqual(layouts[0], "face")
+        self.assertEqual(layouts[-1], "face")
+        self.assertTrue({"split", "bubble", "screen"} & set(layouts))
+        self.assertFalse(compliance.has_errors(compliance.lint(sc, FACTS, proj["assets"])))
+
+    def test_new_formats_have_prompts_and_clean_drafts(self):
+        for mode, tpl in (("ugc", None), ("photo_avatar", None), ("animated", "avatar-host"), ("animated", "chat")):
+            proj = {"mode": mode, "template": tpl, "brief": {}, "assets": []}
+            prompt = script_writer.build_prompt(proj, FACTS)
+            self.assertIn("APPROVED FACTS", prompt)
+            sc = script_writer.template_script(proj, FACTS, 0)
+            self.assertFalse(compliance.has_errors(compliance.lint(sc, FACTS)), (mode, tpl))
+        self.assertIn("first person is fine", script_writer.build_prompt({"mode": "ugc", "brief": {}, "assets": []}, FACTS))
+
+
+@unittest.skipUnless(config.find_tool("ffmpeg"), "FFmpeg not installed")
+class LipSyncTests(unittest.TestCase):
+    def test_mouth_follows_the_voice(self):
+        wav = TMP / "lips.wav"
+        # 1 s of silence, 1 s of a buzzy "voice", 1 s of silence
+        media.run(["-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono:d=1", "-f", "lavfi", "-i", "sine=f=180:r=24000:d=1",
+                   "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono:d=1",
+                   "-filter_complex", "[1]volume=0.5[v];[0][v][2]concat=n=3:v=0:a=1", str(wav)])
+        mouth, width = animate.mouth_track(wav, 30, 3.0)
+        self.assertEqual(len(mouth), 90)
+        self.assertEqual(len(width), 90)
+        self.assertLess(max(mouth[:25]), 0.05)
+        self.assertGreater(sum(mouth[35:55]) / 20, 0.6)
+        self.assertLess(mouth[-1], 0.1)
+        self.assertTrue(all(0 <= v <= 1 for v in mouth + width))
+
+
 @unittest.skipUnless(config.find_tool("ffmpeg"), "FFmpeg not installed")
 class RenderTests(unittest.TestCase):
     def test_full_render(self):
@@ -249,6 +343,101 @@ class RenderTests(unittest.TestCase):
         self.assertEqual((info["width"], info["height"]), (1080, 1920))
         self.assertTrue(config.MIN_SECONDS <= info["duration"] <= config.MAX_SECONDS + 0.1, info["duration"])
         self.assertEqual(report["mode"], "animated")
+
+    def _creator_clip(self):
+        """A 'talking head' test clip: speech-like tone bursts with pauses between them."""
+        src = TMP / "src"
+        src.mkdir(exist_ok=True)
+        clip = src / "creator-selfie.mp4"
+        if not clip.exists():
+            media.run(["-f", "lavfi", "-i", "testsrc2=s=1080x1920:r=30:d=30",
+                       "-f", "lavfi", "-i", "sine=f=220:r=48000:d=30",
+                       "-filter_complex", "[1]volume='if(lt(mod(t,4),3),0.4,0)':eval=frame[a]",
+                       "-map", "0:v", "-map", "[a]", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(clip)])
+        return clip
+
+    def _screen(self, d):
+        vid = TMP / "src" / "insidir-screen.mp4"
+        if not vid.exists():
+            media.run(["-f", "lavfi", "-i", "testsrc2=s=1280x800:r=30:d=12", "-pix_fmt", "yuv420p", str(vid)])
+        tmp = TMP / "up_screen.mp4"
+        shutil.copyfile(vid, tmp)
+        return project.add_asset(d, vid.name, tmp, "screen")
+
+    def test_ugc_render(self):
+        proj = project.new("UGC", {"mode": "ugc"})
+        d = project.project_dir(proj["id"])
+        tmp = TMP / "up_creator.mp4"
+        shutil.copyfile(self._creator_clip(), tmp)
+        c = project.add_asset(d, "creator-selfie.mp4", tmp)
+        self.assertEqual(c["role"], "creator")
+        s = self._screen(d)
+        proj = project.load(d)
+        for a in proj["assets"]:
+            a.update(rights_confirmed=True, genuine=a["role"] == "screen")
+        lines = ["Okay so here is how I read an insider filing every single morning.",
+                 "Every Form 4 is a public SEC filing that anyone can read.",
+                 "Insidir puts all of them in one clean feed for you to read.",
+                 "You see the real buys kept apart from the awards and exercises.",
+                 "And every line links straight to the original filing on EDGAR.", "Uh this part gets cut.",
+                 "Go and look for yourself at insidir dot com right now."]
+        layouts = ["face", "split", "bubble", "screen", "face", "face", "face"]
+        beats = []
+        for i, (text, layout) in enumerate(zip(lines, layouts)):
+            ws = _words(text, i * 4.0 + 0.2, {3: 0.6})
+            beats.append({"id": f"b{i + 1}", "text": text, "keep": i != 5, "overlay": "",
+                          "source": {"asset": c["id"], "start": ws[0]["start"], "end": ws[-1]["end"]}, "words": ws,
+                          "visual": {"kind": "ugc", "layout": layout, "asset": s["id"] if layout != "face" else None}})
+        proj["script"] = {"title": "UGC", "facts_used": [], "beats": beats}
+        project.save(d, proj)
+        report = render.render(d, log=lambda m: None)
+        info = media.probe(d / "out" / report["file"])
+        self.assertEqual((info["width"], info["height"]), (1080, 1920))
+        self.assertTrue(config.MIN_SECONDS <= info["duration"] <= config.MAX_SECONDS + 0.1, info["duration"])
+        self.assertTrue(info["has_audio"])
+        self.assertEqual(report["mode"], "ugc")
+        self.assertGreaterEqual(report["jump_cuts"], 12)       # one per pause, cut sentence left out
+        self.assertFalse(report["disclosure"]["ai_voice"])     # a real voice is not called AI
+        ass = (d / "build" / "captions.ass").read_text(encoding="utf-8")
+        self.assertIn("Real Insidir screen recording", ass)
+        self.assertNotIn("gets", ass.lower())               # the unticked sentence has no captions
+
+    def test_photo_avatar_render(self):
+        fake = TMP / "fake_avatar.py"
+        fake.write_text(
+            "import sys, subprocess\n"
+            "a = dict(zip(sys.argv[1::2], sys.argv[2::2]))\n"
+            "subprocess.run([sys.argv[-1], '-loglevel', 'error', '-y', '-loop', '1', '-framerate', '25', '-i', a['--image'],\n"
+            "                '-i', a['--audio'], '-vf', 'scale=720:1280,format=yuv420p', '-shortest', a['--out']], check=True)\n")
+        settings = config.load_settings()
+        settings["avatar"] = {"enabled": True, "engine": "custom", "license_confirmed": True,
+                              "command": f'"{sys.executable}" "{fake}" --image "{{image}}" --audio "{{audio}}" --out "{{output}}" --ff "{config.ffmpeg()}"'}
+        old = avatar.detect_gpus
+        avatar.detect_gpus = lambda: [{"name": "Test GPU", "vram_gb": 24.0}]
+        try:
+            proj = project.new("Photo avatar", {"mode": "photo_avatar"})
+            d = project.project_dir(proj["id"])
+            img = TMP / "src" / "presenter.png"
+            img.parent.mkdir(exist_ok=True)
+            media.run(["-f", "lavfi", "-i", "testsrc=s=800x1000:r=1:d=1", "-frames:v", "1", str(img)])
+            tmp = TMP / "up_presenter.png"
+            shutil.copyfile(img, tmp)
+            project.add_asset(d, "presenter.png", tmp, "presenter")
+            self._screen(d)
+            proj = project.load(d)
+            for a in proj["assets"]:
+                a.update(rights_confirmed=True, genuine=a["role"] == "screen", ai_generated=a["role"] == "presenter")
+            proj["style"]["captions"] = "estimate"
+            proj["script"] = script_writer.template_script(proj, FACTS, 0)
+            project.save(d, proj)
+            report = render.render(d, settings=settings, log=lambda m: None, engine_name="test-tone")
+        finally:
+            avatar.detect_gpus = old
+        info = media.probe(d / "out" / report["file"])
+        self.assertEqual((info["width"], info["height"]), (1080, 1920))
+        self.assertTrue(report["disclosure"]["ai_presenter"])
+        self.assertTrue(report["disclosure"]["ai_voice"])
+        self.assertIn("AI-generated presenter", (d / "build" / "captions.ass").read_text(encoding="utf-8"))
 
     def test_guard_blocks_render(self):
         proj = project.new("Blocked")

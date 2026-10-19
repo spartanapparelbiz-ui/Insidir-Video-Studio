@@ -6,6 +6,8 @@ import {steps} from '../templates/steps';
 import {bigNumber} from '../templates/bigNumber';
 import {screenSketch} from '../templates/screenSketch';
 import {viral} from '../templates/viral';
+import {avatarHost} from '../templates/avatarHost';
+import {chat} from '../templates/chat';
 
 export const TEMPLATES = {
   'dot-explainer': dotExplainer,
@@ -14,6 +16,8 @@ export const TEMPLATES = {
   'big-number': bigNumber,
   'screen-sketch': screenSketch,
   viral,
+  'avatar-host': avatarHost,
+  chat,
 };
 
 export default makeScene2D(function* (view) {

@@ -3,7 +3,8 @@
 A local, free app for Windows 11 that makes 20–35 second vertical (1080×1920) videos for Insidir, in one browser interface:
 
 - **Claude writes the script.** It's free with copy and paste: the studio builds the full prompt (your brief, your template, your footage and the approved facts). You paste it into claude.ai and paste the reply back. An Anthropic API key is optional and off by default.
-- **Motion Canvas animates it.** Five reusable templates are drawn in a hand-drawn chalkboard style with **Rough.js**. The narrator is the **Insidir dot figure**: the dotted "i" of the Insidir favicon, read as a little person that waves, points, thinks, shrugs and cheers. Frames render headlessly in Microsoft Edge (built into Windows 11) and stream straight into FFmpeg.
+- **Every kind of short video, in one place.** Pick a format on the Brief tab: animated explainers, a cartoon **avatar host** with real lip sync, a **text-chat** story, an **AI photo avatar**, **UGC** made from footage of you, or a cinematic **screen demo**. See [Video formats](#video-formats).
+- **Motion Canvas animates it.** The animated templates are drawn in a hand-drawn chalkboard style with **Rough.js**. The narrator is the **Insidir dot figure**: the dotted "i" of the Insidir favicon, read as a little person that waves, points, thinks, shrugs and cheers. Frames render headlessly in Microsoft Edge (built into Windows 11) and stream straight into FFmpeg.
 - **Kokoro speaks it, mastered like a real voice-over.** Kokoro-82M (Apache-2.0) runs on your CPU using the full-precision model. Pick **Man** or **Woman** in **Voice & look**. The default man's voice is **Studio Male** (a Michael + Fenrir blend, the clearest male voice in testing), with Studio Male Deep and single voices as options. The woman's default is **Studio Warm**, a blend of Kokoro's two top-rated voices (Heart and Bella). Every narration is upsampled to 48 kHz with soxr and run through EQ (less mud, more warmth and presence), de-essing, gentle compression and a two-pass loudness match to −14 LUFS. "Insidir" is always pronounced "insider", while captions keep the real spelling.
 - **Faster Whisper times the captions.** It listens to the finished narration and lines every caption word up with the voice, on your computer. It matched 94–96% of words in testing; if it's missing, timing is estimated from the audio.
 - **Sound design and music, made on your PC.** Whooshes land on every cut, hits on the hook and big numbers, and a riser leads into the end card. An original dark, minimal music bed sits under the voice and ducks while it speaks. Every sound is synthesized from oscillators and noise when you render, so there is no sample library and nothing to license. Your own licensed track replaces the bed if you add one. Both can be switched off in **Voice & look**.
@@ -14,7 +15,7 @@ A local, free app for Windows 11 that makes 20–35 second vertical (1080×1920)
   - states a number that isn't an approved fact,
   - promises returns or tells anyone to buy or sell,
   - implies nonpublic information,
-  - uses a first-person testimonial.
+  - uses a first-person testimonial in an AI voice. (In UGC, where a real person speaks, first person is allowed, but personal results are still blocked and you are reminded to disclose payment with #ad.)
 
   A MYTH card must be followed straight away by the FACT card that corrects it. Genuine footage is labelled "Real Insidir screen recording", an AI-generated presenter is always labelled, and the last beat carries "Research tool. Not investment advice." An on-screen "AI voice" label is off by default; you can switch it on in **Voice & look**. Each render's post-caption text and file metadata still say the narration is an AI voice, and some platforms ask you to tick their AI-content label for synthetic voices.
 
@@ -43,10 +44,40 @@ To update later, download the new ZIP (or `git pull`) into the same folder and r
 
 To use the smaller 88 MB voice model on a slow machine, run `.venv\Scripts\python -m insidir_studio download-models --small`.
 
+## Video formats
+
+| Category | Format | What you give it | What you get |
+|---|---|---|---|
+| Animated | **Viral cinematic**, **Text chat**, **Dot explainer**, **Myth vs fact**, **Step by step**, **Big number**, **Screen sketch** | A script (Claude or an offline draft); optional Insidir recordings | Motion Canvas animation, Kokoro voice, captions, sound design |
+| Avatars | **Avatar host** | A script | A cartoon presenter (Dot, Maya, Leo or Sam) talking to camera, lip-synced to the voice frame by frame, blinking, nodding and gesturing, and pointing up at your real Insidir screens. Runs on any PC with no GPU. |
+| Avatars | **AI photo avatar** | A presenter photo you have the rights to, plus a local talking-avatar model (see below) | The photo lip-synced to the Kokoro narration, cut like UGC (face, split, bubble, screen), always labelled "AI-generated presenter" |
+| UGC | **Talking head** | Clips of you talking (record them in the studio or upload them) | Your own voice and face, cut into tight jump cuts with captions from what you actually said |
+| Screen demo | **Screen-recording demo** | Your Insidir screen recordings and screenshots | Cinematic cuts with a Kokoro voice-over |
+
+### UGC: videos of you
+
+1. Choose **Talking head (UGC)** on the Brief tab.
+2. On the **Footage** tab, press **Start camera** and **Record**. A teleprompter scrolls your lines over the preview, and each take is saved straight into the project. You can also drop in clips filmed on your phone and set them to **Me on camera**. Click your face on the clip so the crops follow it.
+3. Optional: on the **Script** tab, have Claude write talking points (or use an offline draft). They go to the teleprompter, not into the video.
+4. Press **Transcribe my footage**. Faster Whisper splits what you said into sentences, on your PC. For each sentence:
+   - untick it to cut it,
+   - pick a layout:
+     - **Face**: full screen,
+     - **Split**: the Insidir app on top, your face below,
+     - **Face bubble over app**: your face in a circle on the screen recording,
+     - **App only**: your voice continues over the screen,
+   - optionally add a headline,
+   - fix spellings in the caption text, as long as the number of words stays the same.
+5. Render. The studio cuts every pause longer than 0.3 s and every "um"/"uh" into a jump cut, alternating the framing so each cut lands as a punch-in. Screen recordings keep playing across cuts. Your voice is denoised and mastered to −14 LUFS. Captions, sound design and the end card are added as usual.
+
+The claim guard still checks every kept sentence: numbers must be approved facts, and you can't promise returns. Your real voice is never called an AI voice. If you're paid or get free access, say so in the video and add #ad.
+
 ## The animated templates
 
 | Template | What happens on screen | Use it for |
 |---|---|---|
+| **Text chat** | The script plays out as a phone conversation. Typing dots, message bubbles that pop in and light up word by word as they're read, approved figures as stat cards, and your real Insidir screens sent as photos. Set each beat to ME or THEM. | Relatable hooks: a friend asks, someone answers. |
+| **Avatar host** | A cartoon presenter talks to camera. The mouth is driven by the voice (loudness for openness, brightness for lip width), with blinks, head nods and gestures per beat. Beats with footage or a figure go split-screen with the host pointing up at it; the rest are close-ups. Choose the host under **Voice & look**. | A face for the channel without filming. |
 | **Viral cinematic** (default) | Huge kinetic captions that light up word by word, camera punch-ins, whip transitions with motion blur, cinematic light, approved figures that count up, and your real Insidir screens in a floating device with a spotlight. A progress bar runs along the top. | Reach on TikTok, Reels and Shorts. |
 | **Dot explainer** | The dot figure explains one idea per beat. A doodle (form, calendar, magnifier…) is drawn on beside it and the headline is written in with an underline. | Any topic. The default. |
 | **Myth vs fact** | Cards whip in. MYTH cards get scribbled out in red while the figure shrugs; FACT cards get a green tick. | Correcting misconceptions. |
@@ -68,7 +99,7 @@ The style is a dark, chalk-on-ink hand-drawn explainer look. The palette is Insi
 
 ## Making a video
 
-1. **Brief.** Pick a **video style**: one of the five animated templates or the screen-recording demo. Then set the topic, angle, audience, hook style, target length and call to action.
+1. **Brief.** Pick a **video format**: an animated template, an avatar (cartoon host or AI photo avatar), UGC of you, or the screen-recording demo. Then set the topic, angle, audience, hook style, target length and call to action.
 2. **Footage.** Drop in screen recordings of the real product (Win+Alt+R with Xbox Game Bar, or OBS) and screenshots. On each file, tick:
    - *I have the rights to use it commercially.* This is required for every file you use.
    - *Genuine recording of the real Insidir product*, for demo footage.
@@ -126,7 +157,7 @@ It warns on anything that looks like a ticker.
 
 ## Optional: talking avatar
 
-Turn it on in **Settings → Talking avatar**. The studio doesn't download or bundle any avatar model. You install one, then give the command line it should run. These placeholders are available: `{image}`, `{audio}`, `{output}` and `{outdir}`.
+This powers the **AI photo avatar** format and animated presenter beats in the screen demo. The **Avatar host** cartoon doesn't need it. Turn it on in **Settings → Talking avatar**. The studio doesn't download or bundle any avatar model. You install one, then give the command line it should run. These placeholders are available: `{image}`, `{audio}`, `{output}` and `{outdir}`.
 
 | Engine | Status (check the current licences yourself) |
 |---|---|
@@ -172,14 +203,15 @@ You can set these environment variables:
 | `insidir_studio/tts.py` | Kokoro narration, per-sentence synthesis, word alignment from the waveform, fit to 20–35 s |
 | `insidir_studio/timeline.py` | Edit decision list: J-cuts, shot splits on word starts, framings, transitions, 30 fps grid |
 | `insidir_studio/render.py` | FFmpeg: per-shot segments (blurred backdrop, focus crop, supersampled zoom), runs, xfades, ASS captions, voice/music mix, loudness |
+| `insidir_studio/ugc.py` | UGC and AI photo avatar: transcription into sentences, jump-cut planning, face/split/bubble/screen layouts, the cut voice track |
 | `insidir_studio/captions.py` | Animated ASS captions, headlines, disclosure labels, end card |
 | `insidir_studio/avatar.py` | GPU detection, licence gate, external avatar command |
-| `insidir_studio/animate.py` | Template catalogue, Motion Canvas job folder (data.json + media), Node bridge |
+| `insidir_studio/animate.py` | Template catalogue, Motion Canvas job folder (data.json + media), lip-sync mouth track, Node bridge |
 | `insidir_studio/whisper_align.py` | Faster Whisper word timestamps matched back to the script |
 | `motion/scripts/render.mjs` | Headless render: Vite + Motion Canvas in Edge/Chromium, frames piped into FFmpeg |
 | `motion/src/lib/figure.tsx` | The Insidir dot figure and its poses |
 | `motion/src/lib/rough.tsx`, `icons.ts` | Rough.js strokes as Motion Canvas paths that draw on; doodle icons |
-| `motion/src/templates/` | The five templates |
+| `motion/src/templates/` | The animated and avatar templates (and `lib/presenter.tsx`, the cartoon hosts) |
 | `insidir_studio/server.py`, `web/` | Local web app (127.0.0.1 only) |
 
 The app is bound to `127.0.0.1`, checks the `Host` header against DNS rebinding, and refuses cross-origin writes.

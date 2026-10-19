@@ -50,6 +50,12 @@ export interface RenderData {
   palette: Palette;
   beats: Beat[];
   words: Word[];
+  // avatar template: which character, and mouth openness / width per frame from the voice
+  character?: string;
+  mouth?: number[];
+  mouth_w?: number[];
+  // chat template: who is texting
+  chat?: {me: string; them: string};
 }
 
 declare global {

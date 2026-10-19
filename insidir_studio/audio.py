@@ -46,15 +46,18 @@ def _measure(src: Path, chain: str) -> dict:
     return json.loads(m.group(0))
 
 
-def master_voice(src: Path, out: Path, log=None) -> Path:
-    """Write a mastered 48 kHz stereo 24-bit WAV of the narration."""
-    meas = _measure(src, VOICE_CHAIN)
+def master_voice(src: Path, out: Path, log=None, denoise: bool = False) -> Path:
+    """Write a mastered 48 kHz stereo 24-bit WAV of the narration.
+
+    denoise: for real microphone recordings (UGC), remove steady room/fan noise first."""
+    chain = ("afftdn=nf=-28:tn=1," if denoise else "") + VOICE_CHAIN
+    meas = _measure(src, chain)
     norm = (f"loudnorm=I={TARGET_LUFS}:TP={TARGET_TP}:LRA={TARGET_LRA}"
             f":measured_I={meas['input_i']}:measured_TP={meas['input_tp']}"
             f":measured_LRA={meas['input_lra']}:measured_thresh={meas['input_thresh']}"
             f":offset={meas['target_offset']}:linear=true")
     if log:
         log(f"voice mastering: {float(meas['input_i']):.1f} LUFS -> {TARGET_LUFS:.0f} LUFS")
-    media.run(["-i", str(src), "-af", f"{VOICE_CHAIN},{norm},aresample=48000:resampler=soxr",
+    media.run(["-i", str(src), "-af", f"{chain},{norm},aresample=48000:resampler=soxr",
                "-ac", "2", "-c:a", "pcm_s24le", str(out)], log=log)
     return out

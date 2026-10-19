@@ -113,3 +113,26 @@ def align(wav_path: str, words: list, log=None) -> tuple[list, float]:
     if log:
         log(f"whisper: matched {matched:.0%} of {len(words)} words")
     return out, matched
+
+
+def decode(path, sr: int = 16000) -> np.ndarray:
+    proc = subprocess.run([config.ffmpeg(), "-v", "error", "-i", str(path), "-vn", "-ac", "1", "-ar", str(sr),
+                           "-f", "f32le", "-"], capture_output=True,
+                          creationflags=0x08000000 if sys.platform == "win32" else 0)
+    if proc.returncode != 0:
+        raise RuntimeError(f"Could not read the audio in {path}.")
+    return np.frombuffer(proc.stdout, dtype=np.float32)
+
+
+def transcribe(path) -> list[dict]:
+    """Words with timestamps for real footage: [{"text", "start", "end"}]."""
+    model = _load()
+    segments, _info = model.transcribe(decode(path), language="en", word_timestamps=True, beam_size=5,
+                                       vad_filter=True, condition_on_previous_text=False)
+    words = []
+    for seg in segments:
+        for w in seg.words or []:
+            t = w.word.strip()
+            if t:
+                words.append({"text": t, "start": round(float(w.start), 3), "end": round(float(w.end), 3)})
+    return words

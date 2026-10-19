@@ -134,7 +134,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         if sh.get("ai_presenter"):
             add(3, sh["start"], sh["start"] + sh["duration"], "Label", "{\\an7\\pos(40,%d)}AI-generated presenter" % label_y)
         if sh.get("genuine"):
-            add(3, sh["start"], sh["start"] + sh["duration"], "Label", "{\\an7\\pos(40,%d)}Real Insidir screen recording" % label_y)
+            # stack under an AI-presenter label shown at the same time (e.g. split or bubble layouts)
+            y = label_y + 58 if any(o.get("ai_presenter") and o["start"] < sh["start"] + sh["duration"]
+                                    and sh["start"] < o["start"] + o["duration"] for o in shots) else label_y
+            add(3, sh["start"], sh["start"] + sh["duration"], "Label", "{\\an7\\pos(40,%d)}Real Insidir screen recording" % y)
 
     # -- disclaimer over the last beat, and the end card
     if beat_times:

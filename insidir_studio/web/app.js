@@ -198,24 +198,38 @@ function tabBrief(el) {
 }
 
 function stylePicker() {
-  const p = P(), m = S.status.motion;
+  const p = P(), m = S.status.motion, av = S.status.avatar;
   const choose = (mode, template) => {
     const changed = p.mode !== mode || (mode === "animated" && p.template !== template);
     p.mode = mode; if (template) p.template = template;
     save(); renderProject(); lintSoon(0);
-    if (changed && p.script.beats.length) toast("Style changed. Rewrite or redraft the script to use its fields.");
+    if (changed && p.script.beats.length) toast(mode === "ugc" ? "Format changed. Transcribe your footage on the Script tab." : "Format changed. Rewrite or redraft the script to use its fields.");
   };
-  const card = (on, img, title, text, onclick) => h("button", { class: "tcard" + (on ? " on" : ""), onclick },
+  const card = (on, img, title, text, onclick, note) => h("button", { class: "tcard" + (on ? " on" : ""), onclick },
     img ? h("img", { src: img, alt: "" }) : h("div", { class: "tdemo" }, "▶"),
-    h("b", {}, title), h("span", {}, text));
+    h("b", {}, title), h("span", {}, text), note ? h("em", { class: "tnote" }, note) : null);
+  const anim = (cat) => Object.entries(m.templates).filter(([, t]) => (t.category || "animated") === cat)
+    .map(([id, t]) => card(p.mode === "animated" && p.template === id, `/templates/${id}.jpg`, t.name, t.description,
+      () => choose("animated", id), m.ready ? null : "Needs install.bat"));
+  const group = (title, hint, cards) => h("div", { class: "tgroup" }, h("h3", {}, title), h("p", { class: "hint" }, hint), h("div", { class: "tgrid" }, cards));
   return h("div", { class: "panel" },
-    h("h2", {}, "Video style"),
-    h("p", { class: "hint" }, "Animated templates are drawn with Motion Canvas and Rough.js, narrated by the Insidir dot figure. The demo style cuts your real screen recordings."),
-    m.ready ? null : h("div", { class: "notice" }, "Animated templates need Node.js and the Motion Canvas packages. Run install.bat."),
-    h("div", { class: "tgrid" },
-      Object.entries(m.templates).map(([id, t]) =>
-        card(p.mode === "animated" && p.template === id, `/templates/${id}.jpg`, t.name, t.description, () => choose("animated", id))),
-      card(p.mode !== "animated", null, "Screen-recording demo", "Cinematic cuts of your real Insidir recordings and screenshots.", () => choose("demo"))));
+    h("h2", {}, "Video format"),
+    m.ready ? null : h("div", { class: "notice" }, "Animated and avatar formats need Node.js and the Motion Canvas packages. Run install.bat."),
+    group("Animated", "Motion graphics drawn on this PC with Motion Canvas and Rough.js, read by a Kokoro voice.", anim("animated")),
+    group("Avatars", "A presenter on screen without filming anyone. Avatars are always disclosed as AI or animated.", [
+      ...anim("avatar"),
+      card(p.mode === "photo_avatar", "/templates/photo-avatar.jpg", "AI photo avatar",
+        "Your presenter photo lip-synced by a local talking-avatar model, cut like UGC with real Insidir screens. Labelled \"AI-generated presenter\".",
+        () => choose("photo_avatar"), av.usable ? null : "Needs a GPU + avatar model (Settings)"),
+    ]),
+    group("UGC: real people", "Film yourself (or upload a clip) and the studio transcribes it, cuts the pauses into jump cuts and adds captions, screens and sound.", [
+      card(p.mode === "ugc", "/templates/ugc.jpg", "Talking head (UGC)",
+        "Your own face and voice. Pick per sentence: full face, split with the app, face bubble over the app, or app only.",
+        () => choose("ugc"), S.status.whisper.installed ? null : "Needs Faster Whisper (install.bat)"),
+    ]),
+    group("Screen demo", "Cinematic cuts of your real Insidir recordings with a Kokoro voice-over.", [
+      card(p.mode === "demo" || !p.mode, null, "Screen-recording demo", "Push-ins, whip cuts and captions over your genuine Insidir screen recordings and screenshots.", () => choose("demo")),
+    ]));
 }
 
 // ------------------------------------------------------------ 2 footage
@@ -223,12 +237,15 @@ function tabFootage(el) {
   const input = h("input", { type: "file", multiple: true, accept: "video/*,image/*,audio/*", style: { display: "none" } });
   input.onchange = () => uploadFiles([...input.files]);
   const drop = h("div", { class: "drop" },
-    h("p", {}, h("b", {}, "Drop screen recordings, screenshots, a presenter photo or a music track here")),
+    h("p", {}, h("b", {}, P().mode === "ugc" ? "Drop your talking-head clips (set them to \"Me on camera\") and Insidir screen recordings here"
+      : P().mode === "photo_avatar" ? "Drop a presenter photo (set it to Presenter) and Insidir screen recordings here"
+      : "Drop screen recordings, screenshots, a presenter photo or a music track here")),
     h("p", { class: "hint" }, "MP4 / MOV / WebM, PNG / JPG / WebP, MP3 / WAV. Record the real Insidir product (Windows: Win+Alt+R with Xbox Game Bar, or OBS). Music must be licensed for commercial use."),
     h("button", { onclick: () => input.click() }, "Choose files"), input);
   drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
   drop.addEventListener("dragleave", () => drop.classList.remove("over"));
   drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); uploadFiles([...e.dataTransfer.files]); });
+  if (P().mode === "ugc") el.append(recorderPanel());
   el.append(drop);
   const grid = h("div", { class: "assets" });
   for (const [name, up] of Object.entries(S.uploads)) {
@@ -254,7 +271,8 @@ function assetCard(a) {
   const notes = h("input", { type: "text", value: a.notes || "", placeholder: "What it shows (helps Claude pick shots)" });
   notes.onchange = () => { a.notes = notes.value; save(); };
   const role = h("select", { onchange: e => set("role", e.target.value) },
-    [["screen", "Insidir demo"], ["image", "Other image / b-roll"], ["presenter", "Presenter"], ["music", "Music"]]
+    [["creator", "Me on camera (UGC)"], ["screen", "Insidir demo"], ["image", "Other image / b-roll"], ["presenter", "Presenter"], ["music", "Music"]]
+      .filter(([v]) => v !== "creator" || a.type === "video" || a.role === "creator")
       .map(([v, t]) => h("option", { value: v, selected: a.role === v }, t)));
   const check = (k, text) => h("label", { class: "check" + (a[k] ? " on" : "") },
     h("input", { type: "checkbox", checked: a[k], onchange: e => set(k, e.target.checked) }), text);
@@ -265,6 +283,10 @@ function assetCard(a) {
     a.role === "screen" || a.role === "image" ? check("genuine", "Genuine recording/screenshot of the real Insidir product") : null,
     a.role === "presenter" || a.role === "image" ? check("ai_generated", "Shows an AI-generated person or scene (labelled on screen)") : null,
     a.role === "presenter" && !a.ai_generated ? h("div", { class: "hint" }, "A real person must have agreed to appear in an ad. If unsure, mark it AI-generated or don't use it.") : null,
+    a.role === "creator" ? check("ai_generated", "This is an AI avatar, not a real person (labelled on screen)") : null,
+    a.role === "creator" ? h("div", { class: "hint" }, a.ai_generated ? "Shown with an \"AI-generated presenter\" label." : "You, or someone who agreed to appear. Their own words; if they are paid, say #ad.") : null,
+    (a.role === "creator" || a.role === "presenter") && a.type !== "audio" ? h("div", {}, h("div", { class: "hint" }, "Click the face (crops follow it)"),
+      focusPicker(a, a.type === "video" ? Math.min(1, a.duration / 2) : 0, a.focus || [0.5, 0.4], f => { a.focus = f; save(); renderProject(); })) : null,
     h("div", { class: "row", style: { marginTop: "6px" } },
       h("button", { class: "small danger", onclick: async () => {
         if (!confirm("Remove this file from the project?")) return;
@@ -273,11 +295,26 @@ function assetCard(a) {
       } }, "Remove")));
 }
 
-function uploadFiles(files) {
+function focusPicker(asset, t, cur, onset) {
+  const focus = h("div", { class: "focus", title: "Click to set the focus point" });
+  focus.style.backgroundImage = `url(/api/projects/${P().id}/thumb/${asset.id}?t=${t})`;
+  focus.append(h("div", { class: "dot", style: { left: cur[0] * 100 + "%", top: cur[1] * 100 + "%" } }));
+  focus.onclick = e => {
+    const r = focus.getBoundingClientRect();
+    const ar = asset.width / asset.height, br = r.width / r.height;
+    let w = r.width, hh = r.height, ox = 0, oy = 0;
+    if (ar > br) { hh = r.width / ar; oy = (r.height - hh) / 2; } else { w = r.height * ar; ox = (r.width - w) / 2; }
+    onset([Math.round(Math.min(1, Math.max(0, (e.clientX - r.left - ox) / w)) * 100) / 100,
+      Math.round(Math.min(1, Math.max(0, (e.clientY - r.top - oy) / hh)) * 100) / 100]);
+  };
+  return focus;
+}
+
+function uploadFiles(files, role) {
   for (const f of files) {
     S.uploads[f.name] = 0;
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `/api/projects/${P().id}/assets?filename=${encodeURIComponent(f.name)}`);
+    xhr.open("POST", `/api/projects/${P().id}/assets?filename=${encodeURIComponent(f.name)}` + (role ? `&role=${role}` : ""));
     xhr.upload.onprogress = e => { if (e.lengthComputable) { S.uploads[f.name] = e.loaded / e.total; if (S.tab === "footage") renderProject(); } };
     xhr.onload = async () => {
       delete S.uploads[f.name];
@@ -293,6 +330,81 @@ function uploadFiles(files) {
   renderProject();
 }
 
+// Webcam recorder with a teleprompter. Runs in the browser (127.0.0.1 counts as secure, so
+// the camera is allowed); the take is uploaded to the project like any other clip.
+function recorderPanel() {
+  const p = P();
+  p.teleprompter = p.teleprompter || [];
+  const video = h("video", { autoplay: true, muted: true, playsinline: true });
+  const prompter = h("div", { class: "prompter" }, h("div", { class: "prompter-text" }, p.teleprompter.join("\n\n") || "Write your lines below, or get them from Claude on the Script tab."));
+  const stage = h("div", { class: "rec-stage" }, video, prompter, h("div", { class: "rec-dot", hidden: true }));
+  const lines = h("textarea", { rows: 5, value: p.teleprompter.join("\n"), placeholder: "One line per sentence. Say it your way; the studio cuts to what you actually say." });
+  lines.oninput = () => { p.teleprompter = lines.value.split("\n").map(x => x.trim()).filter(Boolean); prompter.firstChild.textContent = p.teleprompter.join("\n\n"); save(); };
+  const speed = h("input", { type: "range", min: 10, max: 80, step: 1, value: S.prompterSpeed || 34, title: "Scroll speed" });
+  speed.oninput = () => (S.prompterSpeed = Number(speed.value));
+  const camSel = h("select", {}), micSel = h("select", {});
+  let stream = null, rec = null, chunks = [], raf = 0, t0 = 0;
+  const stopStream = () => { if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; };
+  const startCam = async () => {
+    stopStream();
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: camSel.value ? { exact: camSel.value } : undefined, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+        audio: { deviceId: micSel.value ? { exact: micSel.value } : undefined, echoCancellation: false, noiseSuppression: true, autoGainControl: false, channelCount: 1 },
+      });
+    } catch (e) { toast("Camera: " + e.message, true); return; }
+    video.srcObject = stream;
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const fill = (sel, kind, cur) => { sel.innerHTML = ""; devs.filter(d => d.kind === kind).forEach((d, i) => sel.append(h("option", { value: d.deviceId, selected: d.deviceId === cur }, d.label || `${kind} ${i + 1}`))); };
+    fill(camSel, "videoinput", stream.getVideoTracks()[0].getSettings().deviceId);
+    fill(micSel, "audioinput", stream.getAudioTracks()[0].getSettings().deviceId);
+    recBtn.disabled = false;
+  };
+  camSel.onchange = startCam; micSel.onchange = startCam;
+  const scroll = () => {
+    const txt = prompter.firstChild;
+    const y = ((performance.now() - t0) / 1000) * (S.prompterSpeed || 34);
+    txt.style.transform = `translateY(${-y}px)`;
+    raf = requestAnimationFrame(scroll);
+  };
+  const recBtn = h("button", { class: "primary", disabled: true, onclick: () => {
+    if (rec && rec.state === "recording") { rec.stop(); return; }
+    const type = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm", "video/mp4"].find(t => MediaRecorder.isTypeSupported(t));
+    chunks = [];
+    rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 12000000, audioBitsPerSecond: 192000 });
+    rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+    rec.onstop = () => {
+      cancelAnimationFrame(raf); prompter.firstChild.style.transform = "";
+      stage.querySelector(".rec-dot").hidden = true;
+      recBtn.replaceChildren(ic("record"), "Record");
+      const ext = (type || "").includes("mp4") ? "mp4" : "webm";
+      const n = P().assets.filter(a => a.role === "creator").length + 1;
+      uploadFiles([new File(chunks, `creator-take-${n}.${ext}`, { type: type || "video/webm" })], "creator");
+      toast("Take saved. Record another or go to the Script tab to transcribe.");
+    };
+    // 3-2-1 so the first word isn't clipped
+    let c = 3;
+    recBtn.disabled = true;
+    const tick = () => {
+      recBtn.textContent = c ? `Starting in ${c}…` : "";
+      if (c-- > 0) return setTimeout(tick, 700);
+      rec.start(1000); t0 = performance.now() + 1500; scroll();
+      stage.querySelector(".rec-dot").hidden = false;
+      recBtn.disabled = false; recBtn.replaceChildren(ic("stop"), "Stop and save take");
+    };
+    tick();
+  } }, ic("record"), "Record");
+  return h("div", { class: "panel" },
+    h("h2", {}, "Record yourself"),
+    h("p", { class: "hint" }, "Hold the phone-style framing in mind: keep your face in the middle third. Look at the lens, not the text. Takes are saved to this project only."),
+    h("div", { class: "recorder" }, stage,
+      h("div", {},
+        h("div", { class: "row" }, h("button", { onclick: startCam }, ic("camera"), "Start camera"), recBtn),
+        h("div", { class: "grid2", style: { marginTop: "10px" } }, field("Camera", camSel), field("Microphone", micSel)),
+        field("Teleprompter lines", lines),
+        h("div", { class: "row" }, h("span", { class: "hint" }, "Scroll speed"), speed))));
+}
+
 // ------------------------------------------------------------ 3 script
 function tabScript(el) {
   const left = h("div", {});
@@ -303,13 +415,36 @@ function tabScript(el) {
   const reply = h("textarea", { rows: 6, placeholder: "Paste Claude's whole reply here" });
   const promptBox = h("textarea", { class: "prompt-box", rows: 6, readonly: true });
   const variant = h("select", {}, ["How to read an insider trade", "Follow the people who file", "Try it for a dollar"].map((t, i) => h("option", { value: i }, t)));
+  const ugcMode = P().mode === "ugc";
   const useScript = (res) => {
+    if (ugcMode) {
+      P().teleprompter = res.script.beats.map(b => b.text);
+      save(true); toast("Lines added to the teleprompter on the Footage tab"); return;
+    }
     P().script = res.script; S.issues = res.issues; save(true); renderProject();
     toast(res.issues.some(i => i.level === "error") ? "Script loaded. Fix the claim guard errors." : "Script loaded");
   };
+  if (ugcMode) {
+    const creators = P().assets.filter(a => a.role === "creator");
+    left.append(h("div", { class: "panel" },
+      h("h2", {}, "Your footage"),
+      h("p", { class: "hint" }, creators.length
+        ? `Faster Whisper listens to ${creators.length} clip${creators.length > 1 ? "s" : ""} on this PC and splits what you said into sentences. Untick the ones to cut; the pauses and "um"s are cut for you.`
+        : "Record yourself or upload a clip on the Footage tab (set it to \"Me on camera\") first."),
+      h("button", { class: "primary", disabled: !creators.length || !S.status.whisper.installed, onclick: async (e) => {
+        if (P().script.beats.length && !confirm("Transcribe again? Your keep/layout choices will be reset.")) return;
+        e.target.disabled = true; e.target.textContent = "Transcribing…";
+        try {
+          const res = await api("POST", `projects/${P().id}/script/transcribe`, {});
+          P().script = res.script; S.issues = res.issues; save(true); renderProject();
+          toast(`${res.script.beats.length} sentences found`);
+        } catch (err) { toast(err.message, true); e.target.disabled = false; e.target.replaceChildren(ic("transcribe"), "Transcribe my footage"); }
+      } }, ic("transcribe"), "Transcribe my footage"),
+      S.status.whisper.installed ? null : h("div", { class: "notice" }, "UGC needs Faster Whisper. Run install.bat.")));
+  }
   left.append(h("div", { class: "panel" },
-    h("h2", {}, "Write with Claude"),
-    h("p", { class: "hint" }, "Free: copy the prompt into Claude on claude.ai (a free account works), then paste the reply below. The prompt includes your brief, your footage and the approved facts."),
+    h("h2", {}, ugcMode ? "Lines for the teleprompter" : "Write with Claude"),
+    h("p", { class: "hint" }, ugcMode ? "Optional. Claude writes talking points from your brief and the approved facts; they go to the teleprompter on the Footage tab." : "Free: copy the prompt into Claude on claude.ai (a free account works), then paste the reply below. The prompt includes your brief, your footage and the approved facts."),
     h("div", { class: "row" },
       h("button", { class: "primary", onclick: async () => {
         const { prompt } = await api("GET", `projects/${P().id}/prompt`);
@@ -345,7 +480,7 @@ function tabScript(el) {
     h("div", { class: "row", style: { justifyContent: "space-between" } }, h("h2", {}, "Script"), h("div", { class: "stats", id: "stats" })),
     field("Title", title),
     h("div", { id: "beats" }),
-    h("button", { onclick: () => { sc.beats.push({ id: "b" + (sc.beats.length + 1), text: "", visual: { kind: "screen", asset: null, focus: [0.5, 0.5], zoom: 1 }, overlay: "" }); save(); renderProject(); } }, "+ Add beat"),
+    P().mode === "ugc" ? null : h("button", { onclick: () => { sc.beats.push({ id: "b" + (sc.beats.length + 1), text: "", visual: { kind: P().mode === "photo_avatar" ? "ugc" : "screen", layout: "face", asset: null, focus: [0.5, 0.5], zoom: 1 }, overlay: "" }); save(); renderProject(); } }, "+ Add beat"),
     h("div", { class: "label" }, "Facts this script relies on"),
     h("div", { class: "chips" }, S.facts.facts.map(f => {
       const on = (sc.facts_used || []).includes(f.id);
@@ -366,6 +501,7 @@ function renderBeats() {
   if (!wrap) return;
   wrap.innerHTML = "";
   if (P().mode === "animated") return renderAnimatedBeats(wrap);
+  if (P().mode === "ugc" || P().mode === "photo_avatar") return renderPresenterBeats(wrap);
   const sc = P().script;
   const assets = P().assets.filter(a => a.role !== "music");
   sc.beats.forEach((b, i) => {
@@ -474,10 +610,71 @@ function renderAnimatedBeats(wrap) {
   updateStats();
 }
 
+const LAYOUTS = [["face", "Face"], ["split", "Split: app on top"], ["bubble", "Face bubble over app"], ["screen", "App only"]];
+
+function renderPresenterBeats(wrap) {
+  const p = P(), sc = p.script, ugcMode = p.mode === "ugc";
+  const screens = p.assets.filter(a => a.role === "screen" || a.role === "image");
+  const byId = Object.fromEntries(p.assets.map(a => [a.id, a]));
+  sc.beats.forEach((b, i) => {
+    b.visual = b.visual || {};
+    const v = b.visual;
+    v.layout = v.layout || "face";
+    const redraw = () => { save(); lintSoon(); renderBeats(); };
+    const text = h("textarea", { value: b.text, rows: 2 });
+    text.oninput = () => { b.text = text.value; save(); lintSoon(); updateStats(); };
+    const words = (b.text || "").trim().split(/\s+/).length;
+    const fixNote = ugcMode && b.words && words !== b.words.length
+      ? h("div", { class: "hint", style: { color: "var(--warn)" } }, `Captions use what you said: keep ${b.words.length} words to fix spellings.`) : null;
+    const keep = ugcMode ? h("label", { class: "check" + (b.keep !== false ? " on" : ""), title: "Keep this sentence in the video" },
+      h("input", { type: "checkbox", checked: b.keep !== false, onchange: e => { b.keep = e.target.checked; redraw(); } }), "Keep") : null;
+    const layout = h("select", { onchange: e => {
+      v.layout = e.target.value;
+      if (v.layout !== "face" && !v.asset && screens.length) v.asset = screens[0].id;
+      redraw();
+    } }, LAYOUTS.map(([val, t]) => h("option", { value: val, selected: v.layout === val }, t)));
+    const scr = v.layout === "face" ? null : h("select", { onchange: e => { v.asset = e.target.value || null; redraw(); } },
+      h("option", { value: "" }, screens.length ? "Pick a screen" : "Upload an Insidir recording first"),
+      screens.map(a => h("option", { value: a.id, selected: v.asset === a.id }, a.label)));
+    const overlay = h("input", { type: "text", value: b.overlay || "", placeholder: "On-screen headline (optional)" });
+    overlay.oninput = () => { b.overlay = overlay.value; save(); lintSoon(); };
+    const src = b.source && byId[b.source.asset];
+    const chosen = byId[v.asset];
+    let side;
+    if (v.layout !== "face" && chosen) side = focusPicker(chosen, chosen.type === "video" ? 0.5 : 0, v.focus || [0.5, 0.5], f => { v.focus = f; redraw(); });
+    else if (src) side = h("div", { class: "focus", style: { backgroundImage: `url(/api/projects/${p.id}/thumb/${src.id}?t=${(b.source.start + 0.3).toFixed(1)})` } });
+    else side = h("div", { class: "focus" }, h("div", { class: "empty-note" }, ugcMode ? "" : "AI presenter"));
+    const move = (d) => { const j = i + d; if (j < 0 || j >= sc.beats.length) return; [sc.beats[i], sc.beats[j]] = [sc.beats[j], sc.beats[i]]; renumber(); redraw(); };
+    wrap.append(h("div", { class: "ubeat" + (b.keep === false ? " off" : "") },
+      h("div", { class: "num" }, i + 1),
+      h("div", {},
+        ugcMode && b.source ? h("div", { class: "time" }, `${src ? src.label : "clip"} · ${fmtSec(b.source.start)}–${fmtSec(b.source.end)}`) : null,
+        text, fixNote,
+        h("div", { class: "opts" }, keep, layout, scr),
+        h("div", { style: { marginTop: "8px" } }, overlay),
+        v.shot ? h("div", { class: "shot" }, "Shot idea: " + v.shot) : null),
+      h("div", { class: "side-tools" }, side,
+        h("div", { class: "btns" },
+          h("button", { class: "small", onclick: () => move(-1), title: "Move up" }, "↑"),
+          h("button", { class: "small", onclick: () => move(1), title: "Move down" }, "↓"),
+          ugcMode ? null : h("button", { class: "small danger", onclick: () => { sc.beats.splice(i, 1); renumber(); redraw(); }, title: "Delete beat" }, "✕")))));
+  });
+  if (!sc.beats.length) wrap.append(h("p", { class: "hint" }, ugcMode ? "Nothing yet. Record or upload yourself, then press Transcribe." : "No beats yet. Paste a reply from Claude or use an offline draft."));
+  updateStats();
+}
+
 function updateStats() {
   const el = document.getElementById("stats");
   if (!el) return;
   const beats = P().script.beats;
+  if (P().mode === "ugc") {
+    const kept = beats.filter(b => b.keep !== false && b.source);
+    const secs = kept.reduce((n, b) => n + (b.source.end - b.source.start) * 0.97, 0) + (P().style.end_card !== false ? 1.8 : 0);
+    const ok = secs >= 20 && secs <= 35;
+    el.innerHTML = "";
+    el.append(h("b", {}, kept.length), ` of ${beats.length} sentences · about `, h("b", { style: { color: ok ? "" : "var(--warn)" } }, fmtSec(secs)), " after cuts");
+    return;
+  }
   const words = beats.reduce((n, b) => n + (b.text.trim() ? b.text.trim().split(/\s+/).length : 0), 0);
   const speed = P().voice.speed || 1;
   const est = words / (2.35 * speed) + beats.length * 0.32 + 1.8;
@@ -527,8 +724,21 @@ function tabLook(el) {
   vol.onchange = () => { p.music.volume_db = Number(vol.value); save(); };
   const presenter = p.assets.find(a => a.role === "presenter");
   const av = S.status.avatar;
+  const chars = S.status.motion.characters || {};
+  p.avatar = p.avatar || { character: "dot" };
+  p.chat = p.chat || { me: "Insidir", them: "Alex" };
+  const chatInput = (k) => { const i = h("input", { type: "text", value: p.chat[k], maxlength: 24 }); i.oninput = () => { p.chat[k] = i.value; save(); }; return i; };
   el.append(
-    h("div", { class: "panel" }, h("h2", {}, "Voice"),
+    p.mode === "animated" && p.template === "avatar-host" ? h("div", { class: "panel" }, h("h2", {}, "Host"),
+      h("p", { class: "hint" }, "A cartoon character drawn on this PC. Its mouth follows the voice frame by frame; it blinks, nods and gestures on each beat."),
+      h("div", { class: "seg" }, Object.entries(chars).map(([id, name]) =>
+        h("button", { class: p.avatar.character === id ? "on" : "", onclick: () => { p.avatar.character = id; save(); renderProject(); } }, name)))) : null,
+    p.mode === "animated" && p.template === "chat" ? h("div", { class: "panel" }, h("h2", {}, "Chat"),
+      h("div", { class: "grid2" }, field("Person asking (THEM)", chatInput("them")), field("Person answering (ME)", chatInput("me"))),
+      h("p", { class: "hint" }, "Set each beat's Card to ME or THEM on the Script tab; otherwise they alternate.")) : null,
+    p.mode === "ugc" ? h("div", { class: "panel" }, h("h2", {}, "Voice"),
+      h("p", { class: "hint" }, "UGC uses your own recorded voice. It is cleaned on this PC: steady background noise removed, EQ, de-essing, compression and -14 LUFS loudness. No AI voice is added.")) : null,
+    p.mode === "ugc" ? null : h("div", { class: "panel" }, h("h2", {}, "Voice"),
       h("p", { class: "hint" }, "Kokoro-82M runs on this computer (Apache-2.0, commercial use allowed). Every render is mastered like a voice-over: EQ, de-essing, compression and -14 LUFS loudness. \"Insidir\" is pronounced \"insider\"."),
       field("Narrator", genderSwitch),
       h("div", { class: "grid2" }, field("Kokoro voice", voice), h("label", { class: "field" }, h("span", {}, "Speaking rate"), h("div", { class: "row" }, speed, speedLabel))),
@@ -576,24 +786,31 @@ function tabRender(el) {
   const used = new Set(p.script.beats.map(b => b.visual && b.visual.asset).filter(Boolean));
   const checks = [
     [!!S.status.ffmpeg, "FFmpeg installed"],
-    [S.status.kokoro.ready, "Kokoro voice model installed"],
+    p.mode === "ugc" ? null : [S.status.kokoro.ready, "Kokoro voice model installed"],
     [p.script.beats.length > 0, "Script written"],
     [errors.length === 0, errors.length ? `Claim guard: ${errors.length} problem(s) on the Script tab` : "Claim guard passed"],
     p.mode === "animated"
       ? [S.status.motion.ready, "Motion Canvas installed (Node.js + packages)"]
-      : [p.assets.some(a => a.rights_confirmed && (a.role === "screen" || a.role === "image")), "At least one cleared demo recording or screenshot"],
+      : p.mode === "ugc"
+        ? [p.assets.some(a => a.role === "creator" && a.rights_confirmed), "A cleared \"Me on camera\" clip"]
+        : p.mode === "photo_avatar"
+          ? [p.assets.some(a => a.role === "presenter" && a.type === "image" && a.rights_confirmed), "A cleared presenter photo"]
+          : [p.assets.some(a => a.rights_confirmed && (a.role === "screen" || a.role === "image")), "At least one cleared demo recording or screenshot"],
+    ...(p.mode === "ugc" ? [[S.status.whisper.installed, "Faster Whisper installed"],
+      [p.script.beats.some(b => b.keep !== false), "Footage transcribed, at least one sentence kept"]] : []),
+    ...(p.mode === "photo_avatar" ? [[S.status.avatar.usable, S.status.avatar.usable ? "Talking-avatar model ready" : "Talking-avatar model: " + S.status.avatar.reasons.join(" ")]] : []),
     ...(p.mode === "animated" && p.template === "screen-sketch"
       ? [[p.assets.some(a => a.rights_confirmed && a.genuine), "At least one cleared, genuine Insidir screenshot or recording"]] : []),
     [p.assets.filter(a => used.has(a.id)).every(a => a.rights_confirmed), "Rights confirmed for every file used"],
   ];
-  const ready = checks.every(c => c[0]);
+  const ready = checks.filter(Boolean).every(c => c[0]);
   const prog = h("div", { class: "big-progress" }, h("div", {}));
   const msg = h("div", { class: "hint" });
   const log = h("pre", { class: "log", hidden: true });
   const btn = h("button", { class: "primary", disabled: !ready, onclick: () => startRender(btn, prog, msg, log) }, ic("render"), "Render MP4");
   el.append(
     h("div", { class: "panel" }, h("h2", {}, "Ready to render?"),
-      h("ul", { class: "issues" }, checks.map(([ok, t]) => h("li", { class: ok ? "ok" : "error" }, t))),
+      h("ul", { class: "issues" }, checks.filter(Boolean).map(([ok, t]) => h("li", { class: ok ? "ok" : "error" }, t))),
       h("div", { style: { height: "12px" } }), btn, prog, msg,
       h("button", { class: "small ghost", onclick: () => (log.hidden = !log.hidden) }, "Show log"), log),
     h("div", { class: "panel" }, h("div", { class: "row", style: { justifyContent: "space-between" } }, h("h2", {}, "Renders"),

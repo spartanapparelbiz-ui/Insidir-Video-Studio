@@ -12,7 +12,7 @@
   --faint: #77736c;
   --up: #2f996a;
   --down: #f94144;
-  --warn: #e0a526;
+  --warn: #ec7a55;
   --accent: #ffffff;
   --mono: ui-monospace, "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
 }
@@ -193,6 +193,9 @@ pre.log { max-height: 220px; overflow: auto; background: #000; padding: 10px; fo
 .tcard .tdemo { display: grid; place-items: center; font-size: 40px; color: var(--muted); }
 .tcard b { font-size: 14px; }
 .tcard span { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.tgroup + .tgroup { margin-top: 18px; }
+.tgroup h3 { margin: 0 0 2px; }
+.tcard .tnote { font-size: 11px; font-style: normal; color: var(--warn); }
 .tcard.on { border-color: var(--paper); box-shadow: inset 0 0 0 1px var(--paper); }
 .aopts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0 10px; margin-top: 10px; }
 .aopts label.field { margin-bottom: 6px; }
@@ -210,3 +213,18 @@ pre.log { max-height: 220px; overflow: auto; background: #000; padding: 10px; fo
   .beat .side-tools { grid-column: 2; }
   main { padding: 16px; }
 }
+
+/* recorder */
+.recorder { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
+.rec-stage { position: relative; aspect-ratio: 9/16; background: #000; border: 1px solid var(--line); overflow: hidden; }
+.rec-stage video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.prompter { position: absolute; inset: 0 0 auto 0; height: 38%; overflow: hidden; background: linear-gradient(rgba(0,0,0,.72), rgba(0,0,0,.35) 80%, transparent);
+  -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+.prompter-text { padding: 14px 16px 400px; font-size: 19px; line-height: 1.35; font-weight: 600; color: #fff; white-space: pre-wrap; }
+.rec-dot { position: absolute; top: 10px; right: 10px; width: 14px; height: 14px; border-radius: 50%; background: #f94144; box-shadow: 0 0 0 4px rgba(249,65,68,.3); animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: .3; } }
+/* UGC sentence editor */
+.ubeat { display: grid; grid-template-columns: 26px 1fr 170px; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.ubeat.off { opacity: .45; }
+.ubeat .time { font-size: 12px; color: var(--muted); }
+@media (max-width: 900px) { .recorder, .ubeat { grid-template-columns: 1fr; } }

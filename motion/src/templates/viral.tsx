@@ -9,14 +9,14 @@ import {Sketch, drawOn} from '../lib/rough';
 import {until} from '../lib/timing';
 import {flashHit, kineticCaptions, punch, stage, whipIn, whipOut} from '../lib/cinema';
 
-const norm = (t: string) => t.toUpperCase().replace(/[^A-Z0-9$%]/g, '');
+export const norm = (t: string) => t.toUpperCase().replace(/[^A-Z0-9$%]/g, '');
 
-function headlineSize(text: string) {
+export function headlineSize(text: string) {
   const n = text.length;
   return n <= 10 ? 176 : n <= 18 ? 148 : n <= 28 ? 122 : 100;
 }
 
-function statement(text: string, y: number, size: number) {
+export function statement(text: string, y: number, size: number) {
   const words = text.split(/\s+/).filter(Boolean);
   const refs = words.map(() => createRef<Txt>());
   const node = (
@@ -41,18 +41,18 @@ function statement(text: string, y: number, size: number) {
   return {node, show};
 }
 
-function eyebrow(text: string, y: number) {
+export function eyebrow(text: string, y: number) {
   return (
     <Txt text={text.toUpperCase()} fontFamily="Inter" fontWeight={700} fontSize={46} letterSpacing={6} fill="#a9a59d" y={y} opacity={0} />
   ) as Txt;
 }
 
-function cleanIcon(data: RenderData, name: string, y: number, scale = 1.3) {
+export function cleanIcon(data: RenderData, name: string, y: number, scale = 1.3) {
   const strokes = icon(name || 'document', {stroke: '#ffffff', width: 7 / scale, roughness: 0.35, bowing: 0.2}, '#ffffff');
   return (<Sketch strokes={strokes} y={y} scale={scale} />) as Node;
 }
 
-function number(b: Beat) {
+export function number(b: Beat) {
   const m = b.emphasis.trim().match(/^([$€£]?)(\d+)(.*)$/);
   const prefix = m ? m[1] : '';
   const target = m ? parseInt(m[2], 10) : 0;
@@ -81,7 +81,7 @@ function number(b: Beat) {
   return {nodes: [big, label], show};
 }
 
-function device(b: Beat) {
+export function device(b: Beat) {
   const a = b.asset!;
   const k = Math.min(900 / a.width, 960 / a.height);
   const w = Math.round(a.width * k);

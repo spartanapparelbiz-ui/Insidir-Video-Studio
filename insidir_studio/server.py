@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import animate, avatar, compliance, config, media, project, render, script_writer, tts, whisper_align
+from . import animate, avatar, compliance, config, media, project, render, script_writer, tts, ugc, whisper_align
 
 JOBS: dict[str, dict] = {}
 RENDER_LOCK = threading.Lock()
@@ -234,6 +234,9 @@ class Handler(BaseHTTPRequestHandler):
                                                    "rights_confirmed", "notes") if k in a}}
             if merged["role"] not in project.ROLES:
                 merged["role"] = keep["role"]
+            f = a.get("focus")
+            if isinstance(f, list) and len(f) == 2 and all(isinstance(x, (int, float)) and 0 <= x <= 1 for x in f):
+                merged["focus"] = [float(f[0]), float(f[1])]
             assets.append(merged)
         body["assets"] = assets
         body["id"] = cur["id"]
@@ -346,6 +349,11 @@ class Handler(BaseHTTPRequestHandler):
                 prompt = script_writer.build_prompt(proj, compliance.load_facts())
                 reply = script_writer.call_api(prompt, s["claude"].get("model"), s["claude"].get("api_key") or None)
                 script = script_writer.parse_reply(reply, proj["assets"])
+            elif sub[1] == "transcribe":
+                try:
+                    script = ugc.transcribe(proj, d, log=print)
+                except RuntimeError as e:
+                    raise ApiError(400, str(e))
             else:
                 raise ApiError(404, "Unknown script action")
             return self._json({"script": script, "issues": script_writer.lint_reply(script, proj)})
@@ -353,7 +361,7 @@ class Handler(BaseHTTPRequestHandler):
             proj = project.load(d)
             body = self._body_json()
             script = body.get("script") or proj.get("script") or {}
-            return self._json({"issues": compliance.lint(script, compliance.load_facts(), proj["assets"])})
+            return self._json({"issues": script_writer.lint_reply(script, proj)})
         if what == "voice-preview" and method == "POST":
             body = self._body_json()
             text = (body.get("text") or "This is how your narration will sound.").strip()[:400]

@@ -7,7 +7,7 @@ import shutil
 import time
 from pathlib import Path
 
-from . import animate, audio, sound, avatar, captions, compliance, config, media, project, timeline, tts, whisper_align
+from . import animate, audio, sound, ugc, avatar, captions, compliance, config, media, project, timeline, tts, whisper_align
 
 W, H, FPS = config.WIDTH, config.HEIGHT, config.FPS
 INK = "0x111111"
@@ -255,7 +255,17 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
     for i, b in enumerate(beats):
         b.setdefault("id", f"b{i + 1}")
 
-    issues = compliance.lint(script, facts, proj.get("assets", []))
+    mode = proj.get("mode") or "demo"
+    if mode == "ugc":
+        beats = [b for b in beats if b.get("keep", True)]
+        if not beats:
+            raise RenderError("Keep at least one sentence.")
+    if mode == "ugc":
+        for a in ugc.creator_assets(proj):
+            if not a.get("rights_confirmed"):
+                raise RenderError(f'Confirm you have the rights to use "{a.get("label") or a.get("file")}" (Footage tab).')
+    real_person = ugc.real_person(proj)
+    issues = compliance.lint(script, facts, proj.get("assets", []), real_person=real_person)
     if compliance.has_errors(issues):
         msgs = "; ".join(f"[{i['where']}] {i['message']}" for i in issues if i["level"] == "error")
         raise RenderError("The claim guard blocked this render: " + msgs)
@@ -270,41 +280,72 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
     for f in config.FONTS_DIR.glob("*.otf"):
         shutil.copyfile(f, fonts / f.name)
 
-    # 1. voice
-    progress(0.05, "Voicing the script")
-    engine = tts.get_engine(engine_name)
-    voice = tts.valid_voice(proj.get("voice", {}).get("voice") or settings.get("voice"))
-    speed = float(proj.get("voice", {}).get("speed") or settings.get("speed", 1.0))
-    end_card_on = proj.get("style", {}).get("end_card", True)
-    extra = timeline.END_CARD_SECONDS if end_card_on else 0.0
-    nar = tts.fit_narration(beats, voice, speed, engine, build, extra_seconds=extra, log=log)
-    total_est = nar.duration + extra
-    if not (config.MIN_SECONDS - 0.05 <= total_est <= config.MAX_SECONDS + 0.05):
-        raise RenderError(
-            f"The voiced video runs {total_est:.1f}s; it must be {config.MIN_SECONDS:.0f}-{config.MAX_SECONDS:.0f}s. "
-            + ("Shorten the script." if total_est > config.MAX_SECONDS else "Add a sentence or two.")
-        )
-
-    # 1b. caption timing: Faster Whisper when available (or asked for), else the estimate
-    cap_mode = proj.get("style", {}).get("captions") or "auto"
-    words = nar.words
-    if cap_mode == "whisper" or (cap_mode == "auto" and whisper_align.available()):
-        if not whisper_align.available():
-            raise RenderError("Faster Whisper is not installed. Run install.bat or pick estimated caption timing.")
-        progress(0.12, "Timing captions with Faster Whisper")
-        aligned, matched = whisper_align.align(nar.wav, nar.words, log=log)
-        if matched >= 0.6:
-            words = aligned
-        else:
-            log(f"whisper matched only {matched:.0%}; keeping the estimated timing")
-
-    mode = proj.get("mode") or "demo"
-    # animated templates render at 60 fps for smoother motion; the demo cuts stay at 30
+    # animated templates render at 60 fps for smoother motion; the demo and UGC cuts stay at 30
     high = proj.get("style", {}).get("quality", "high") == "high"
     out_fps = 60 if (mode == "animated" and high) else FPS
     assets = proj.get("assets", [])
     avatar_videos: dict = {}
-    if mode == "animated":
+    end_card_on = proj.get("style", {}).get("end_card", True)
+    extra = timeline.END_CARD_SECONDS if end_card_on else 0.0
+    if mode == "ugc":
+        progress(0.05, "Cutting your footage")
+        u = ugc.build(proj, beats, project_dir, build, FPS, end_card_on, timeline.END_CARD_SECONDS, log, progress)
+        if not (config.MIN_SECONDS - 0.05 <= u.total <= config.MAX_SECONDS + 0.05):
+            raise RenderError(
+                f"The edit runs {u.total:.1f}s; it must be {config.MIN_SECONDS:.0f}-{config.MAX_SECONDS:.0f}s. "
+                + ("Untick a sentence or two on the Script tab." if u.total > config.MAX_SECONDS else "Keep more sentences.")
+            )
+        nar = tts.Narration(wav=str(u.voice), duration=u.end_card_start or u.total, speed=1.0, voice="creator",
+                            engine="recorded", beats=u.beat_times, words=u.words)
+        words = tts_words = u.words
+        total, end_card_start = u.total, u.end_card_start
+        run_files, run_trans, run_durs = [u.video], [None], [total]
+        shots = u.shots
+        caption_beats = beats
+    else:
+        # 1. voice
+        progress(0.05, "Voicing the script")
+        engine = tts.get_engine(engine_name)
+        voice = tts.valid_voice(proj.get("voice", {}).get("voice") or settings.get("voice"))
+        speed = float(proj.get("voice", {}).get("speed") or settings.get("speed", 1.0))
+        nar = tts.fit_narration(beats, voice, speed, engine, build, extra_seconds=extra, log=log)
+        tts_words = nar.words
+        total_est = nar.duration + extra
+        if not (config.MIN_SECONDS - 0.05 <= total_est <= config.MAX_SECONDS + 0.05):
+            raise RenderError(
+                f"The voiced video runs {total_est:.1f}s; it must be {config.MIN_SECONDS:.0f}-{config.MAX_SECONDS:.0f}s. "
+                + ("Shorten the script." if total_est > config.MAX_SECONDS else "Add a sentence or two.")
+            )
+
+        # 1b. caption timing: Faster Whisper when available (or asked for), else the estimate
+        cap_mode = proj.get("style", {}).get("captions") or "auto"
+        words = nar.words
+        if cap_mode == "whisper" or (cap_mode == "auto" and whisper_align.available()):
+            if not whisper_align.available():
+                raise RenderError("Faster Whisper is not installed. Run install.bat or pick estimated caption timing.")
+            progress(0.12, "Timing captions with Faster Whisper")
+            aligned, matched = whisper_align.align(nar.wav, nar.words, log=log)
+            if matched >= 0.6:
+                words = aligned
+            else:
+                log(f"whisper matched only {matched:.0%}; keeping the estimated timing")
+    if mode == "ugc":
+        pass
+    elif mode == "photo_avatar":
+        # 2 (photo avatar). The local avatar model lip-syncs the photo to the narration; the
+        # result is then cut exactly like UGC footage (layouts, punch-ins, captions).
+        u = _photo_avatar(proj, beats, nar, words, settings, project_dir, build, end_card_on, log, progress)
+        avatar_videos = {"_avatar": u.video}
+        if u.total < config.MIN_SECONDS - 0.05:
+            raise RenderError(f"With the pauses trimmed the video runs {u.total:.1f}s. Add a sentence or two.")
+        words = u.words
+        total, end_card_start = u.total, u.end_card_start
+        run_files, run_trans, run_durs = [u.video], [None], [total]
+        shots = u.shots
+        caption_beats = beats
+        nar = tts.Narration(wav=str(u.voice), duration=u.end_card_start or u.total, speed=nar.speed, voice=nar.voice,
+                            engine=nar.engine, beats=u.beat_times, words=u.words)
+    elif mode == "animated":
         # 2-4 (animated). Motion Canvas draws the picture; FFmpeg adds the rest below.
         st = animate.status()
         if not st["ready"]:
@@ -313,7 +354,7 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
         total = round((nar.duration + extra) * out_fps) / out_fps
         end_card_start = nar.duration if end_card_on else None
         job = animate.build_job(proj, beats, spans, nar.beats, words, total, end_card_start, project_dir, build, log,
-                                fps=out_fps)
+                                fps=out_fps, voice_wav=Path(nar.wav))
         progress(0.2, f"Animating ({animate.TEMPLATES.get(proj.get('template'), {}).get('name', 'template')})")
         motion_out = build / "motion.mp4"
         animate.render_job(job, motion_out, log=log, progress=lambda f: progress(0.2 + 0.6 * f, "Animating"))
@@ -349,7 +390,7 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
 
     # 6. final: transitions + captions + mixed audio
     progress(0.84, "Mastering the voice")
-    voice_wav = audio.master_voice(Path(nar.wav), build / "voice_master.wav", log=log)
+    voice_wav = audio.master_voice(Path(nar.wav), build / "voice_master.wav", log=log, denoise=mode == "ugc")
     progress(0.87, "Final mix and encode")
     inputs: list[str] = []
     for rf in run_files:
@@ -372,7 +413,7 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
     use_sfx = bool(style.get("sfx", True))
     if use_sfx:
         spans = timeline.beat_spans(nar.beats, nar.duration)
-        events = sound.plan_events(beats, spans, words, end_card_start, proj.get("template") if mode == "animated" else "demo")
+        events = sound.plan_events(beats, spans, words, end_card_start, proj.get("template") if mode == "animated" else mode)
         sfx_wav = sound.write_wav(build / "sfx.wav", sound.sfx_track(events, total + 0.1))
         inputs += ["-i", str(sfx_wav.relative_to(build))]
     parts = [f"[{i}:v]settb=AVTB,fps={out_fps},format=yuv420p[r{i}]" for i in range(len(run_files))]
@@ -417,7 +458,8 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
         "engine": nar.engine,
         "mode": mode,
         "template": proj.get("template") if mode == "animated" else None,
-        "caption_timing": "whisper" if words is not nar.words else "estimated",
+        "jump_cuts": len(u.segments) if mode in ("ugc", "photo_avatar") else None,
+        "caption_timing": "whisper" if (mode == "ugc" or words is not tts_words) else "estimated",
         "fps": out_fps,
         "shots": len(shots),
         "facts_used": script.get("facts_used", []),
@@ -439,10 +481,46 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
     return report
 
 
+def _photo_avatar(proj, beats, nar, words, settings, project_dir, build, end_card_on, log, progress):
+    photo = next((a for a in proj.get("assets", []) if a.get("role") == "presenter" and a["type"] == "image"
+                  and a.get("rights_confirmed")), None)
+    if not photo:
+        raise RenderError("Upload a presenter photo on the Footage tab, set it to Presenter and confirm the rights.")
+    st = avatar.status(settings)
+    if not st["usable"]:
+        raise RenderError("The AI photo avatar needs the local talking-avatar model: " + " ".join(st["reasons"]))
+    progress(0.15, "Animating the presenter (local avatar model)")
+    raw = avatar.generate(settings, project_dir / photo["file"], Path(nar.wav), build / "avatar" / "presenter_raw.mp4", log)
+    # use the narration itself as the clip's audio so the cut voice is exactly the mastered TTS
+    clip = build / "avatar" / "presenter.mp4"
+    media.run(["-i", str(raw), "-i", str(nar.wav), "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac",
+               "-b:a", "256k", "-shortest", str(clip)], log=log)
+    info = media.probe(clip)
+    cre = {"id": "_avatar", "file": str(clip), "type": "video", "role": "creator", "label": "AI presenter",
+           "width": info["width"], "height": info["height"], "duration": info["duration"],
+           "ai_generated": True, "rights_confirmed": True, "focus": photo.get("focus") or [0.5, 0.4]}
+    p2 = {**proj, "assets": [*proj.get("assets", []), cre]}
+    times = {bt["id"]: bt for bt in nar.beats}
+    ubeats = []
+    for b in beats:
+        bt = times.get(b["id"])
+        if not bt:
+            continue
+        ws = [{"text": w.text, "start": w.start, "end": w.end} for w in words if w.beat == b["id"]]
+        vis = b.get("visual") or {}
+        ubeats.append({**b, "words": ws, "source": {"asset": "_avatar", "start": bt["speech_start"], "end": bt["speech_end"]},
+                       "visual": {**vis, "layout": vis.get("layout") or "face"}})
+    return ugc.build(p2, ubeats, project_dir, build, FPS, end_card_on, timeline.END_CARD_SECONDS, log, progress,
+                     gap=None)
+
+
 def disclosure_text(proj: dict, nar, settings: dict, avatar_videos: dict) -> dict:
     ai_presenter = bool(avatar_videos) or any(
-        a.get("role") == "presenter" and a.get("ai_generated") for a in proj.get("assets", []))
-    bits = [f"Narration is an AI voice (Kokoro, voice {nar.voice})."]
+        a.get("role") in ("presenter", "creator") and a.get("ai_generated") for a in proj.get("assets", []))
+    ugc_real = (proj.get("mode") == "ugc") and nar.engine == "recorded" and not ai_presenter
+    bits = [] if ugc_real else [f"Narration is an AI voice (Kokoro, voice {nar.voice})."]
+    if ugc_real:
+        bits.append("If you were paid, got free access or earn a referral fee, add #ad and say so in the video.")
     if ai_presenter:
         bits.append("The on-screen presenter is AI-generated.")
     if any(a.get("genuine") for a in proj.get("assets", [])):
@@ -450,7 +528,8 @@ def disclosure_text(proj: dict, nar, settings: dict, avatar_videos: dict) -> dic
     bits.append("Research tool. Not investment advice.")
     short = " ".join(bits)
     post = (
-        "Suggested post disclosure (paste into your caption, and switch on the platform's "
-        "AI-generated content label):\n\n" + short
+        "Suggested post disclosure (paste into your caption"
+        + ("):\n\n" if ugc_real else ", and switch on the platform's AI-generated content label):\n\n")
+        + short
     )
-    return {"short": short, "post": post, "ai_voice": True, "ai_presenter": ai_presenter}
+    return {"short": short, "post": post, "ai_voice": not ugc_real, "ai_presenter": ai_presenter}

@@ -12,7 +12,8 @@ from pathlib import Path
 
 from . import config, media
 
-ROLES = ("screen", "image", "presenter", "music")
+# creator: a real person talking to camera (UGC); its own audio is the voice-over
+ROLES = ("screen", "image", "presenter", "creator", "music")
 
 # the web server is threaded: serialise read-modify-write of project.json
 LOCK = threading.RLock()
@@ -95,6 +96,8 @@ def guess_role(filename: str, mtype: str) -> str:
     n = filename.lower()
     if mtype == "audio":
         return "music"
+    if mtype == "video" and any(k in n for k in ("creator", "selfie", "talking", "ugc", "webcam", "face")):
+        return "creator"
     if any(k in n for k in ("presenter", "avatar", "host", "face", "portrait")):
         return "presenter"
     if mtype == "video" or any(k in n for k in ("screen", "insidir", "demo", "capture", "recording")):
