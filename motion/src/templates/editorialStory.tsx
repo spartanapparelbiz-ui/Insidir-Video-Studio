@@ -1,187 +1,205 @@
-// Original Form 4 editorial storyboard: dense geometric animation rather than
-// the same icon/headline card in every scene. All artwork is SVG/canvas geometry.
+// Insidir editorial explainer: one original story, told through the dots of the
+// authentic Insidir "i", real SEC Form 4 concepts, and clean financial information.
+// No sequence counters, fake dashboards, persistent logos, or generic HUD/watermarks.
 import {Circle, Node, Rect, Txt, type View2D} from '@motion-canvas/2d';
-import {all, easeOutBack, easeOutCubic, easeOutExpo, linear, spawn} from '@motion-canvas/core';
+import {all, easeInOutCubic, easeOutCubic, spawn, type ThreadGenerator} from '@motion-canvas/core';
 import type {Beat, RenderData} from '../lib/data';
-import {makeFigure, figureIn, setPose, type DotFigure} from '../lib/figure';
-import {stage, punch, flashHit, whipIn, whipOut} from '../lib/cinema';
+import {makeFigure, figureIn, setPose} from '../lib/figure';
 import {until} from '../lib/timing';
 import {F} from '../lib/fonts';
 
-const WHITE = '#e9e4da';
-const BLACK = '#0c0c0b';
-const MUTED = '#807d77';
+const PAPER = '#e9e4da';
+const INK = '#0c0c0b';
+const MUTED = '#85817b';
+const HAIRLINE = '#292824';
+const DIM = '#b3aea6';
+const COL = 1080, HEIGHT = 1920;
 
-function word(text: string, x: number, y: number, size = 68, fill = WHITE, width = 830) {
-  return (<Txt x={x} y={y} text={text} fontFamily={F.head} fontWeight={800}
-    fontSize={size} letterSpacing={-1.8} fill={fill} width={width} textWrap
-    textAlign="center" lineHeight={size * 1.07} />) as Txt;
+function text(value: string, x: number, y: number, size = 60, color = PAPER, width = 840, mono = false): Txt {
+  return (<Txt text={value} x={x} y={y} fontFamily={mono ? 'monospace' : F.head}
+    fontWeight={mono ? 500 : 760} fontSize={size} lineHeight={size * 1.12}
+    fill={color} letterSpacing={mono ? 1.8 : -1.9}
+    textWrap width={width} textAlign="center" />) as Txt;
 }
 
-function page(x: number, y: number, scale = 1) {
-  const p = (
-    <Node x={x} y={y} scale={scale}>
-      <Rect width={540} height={660} radius={14} fill={WHITE}
-        shadowColor="#000000" shadowBlur={45} shadowOffsetY={24} />
-      <Txt text="FORM 4" fontFamily={F.head} fontSize={72} fontWeight={800}
-        fill={BLACK} y={-220} />
-      <Rect width={390} height={7} y={-125} fill="#84817b" />
-      <Rect width={330} height={7} x={-30} y={-95} fill="#b4afa6" />
-      <Rect width={390} height={3} y={-35} fill="#84817b" />
-      <Rect width={390} height={3} y={45} fill="#84817b" />
-      <Rect width={390} height={3} y={125} fill="#84817b" />
-      <Rect width={390} height={3} y={205} fill="#84817b" />
-      <Rect x={0} y={45} width={360} height={64} radius={8}
-        fill="rgba(12,12,11,0.05)" stroke={BLACK} lineWidth={4} />
-      <Circle x={-156} y={45} size={19} fill={BLACK} />
-    </Node>
-  ) as Node;
-  return p;
+function line(x: number, y: number, w: number, h = 3, color = HAIRLINE): Rect {
+  return (<Rect x={x} y={y} width={w} height={h} fill={color} />) as Rect;
 }
-function pills(n: number, x: number, y: number, radius = 17) {
-  const p = (<Node x={x} y={y}/>) as Node;
-  for (let i = 0; i < n; i++) {
-    p.add(<Circle x={(i % 4) * 70 - 105} y={Math.floor(i / 4) * 70 - 105}
-      size={radius * 2} fill={WHITE} />);
-  }
-  return p;
+
+function dotPattern(x: number, y: number, cols = 5, rows = 4, spacing = 28, size = 8): Node {
+  const root = (<Node x={x} y={y} />) as Node;
+  for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++)
+    root.add(<Circle x={(c - (cols - 1) / 2) * spacing}
+      y={(r - (rows - 1) / 2) * spacing}
+      size={size} fill={PAPER} opacity={0.22 + ((c + r) % 3) * 0.14} />);
+  return root;
 }
-function boxLabel(text: string, x: number, y: number, w = 320) {
+
+function card(title: string, detail: string, x: number, y: number, w = 420, h = 205): Node {
   return (<Node x={x} y={y}>
-    <Rect width={w} height={146} stroke={WHITE} lineWidth={5}
-      fill="rgba(233,228,218,0.06)" radius={12} />
-    <Txt text={text} fontFamily={F.head} fontSize={59} fontWeight={800} fill={WHITE} />
+    <Rect width={w} height={h} radius={11} fill="#121211" stroke="#49463f" lineWidth={2.8}/>
+    <Rect width={9} height={h - 62} x={-w / 2 + 25} fill={PAPER} radius={4}/>
+    {text(title, 14, -32, 55, PAPER, w - 100)}
+    {text(detail, 12, 43, 24, MUTED, w - 100, true)}
   </Node>) as Node;
-}
-function frameTitle(b: Beat, index: number) {
-  return (<Node>
-    <Txt text={String(index + 1).padStart(2, '0') + ' / 10'} fontFamily={F.cap}
-      fontSize={34} fontWeight={600} fill={MUTED} x={-350} y={-740}/>
-    {word(b.headline, 0, -570, b.headline.length > 19 ? 93 : 109, WHITE, 920)}
-  </Node>) as Node;
-}
-function composition(i: number, b: Beat): {node: Node; fig: DotFigure | null} {
-  const root = (<Node>
-    {frameTitle(b, i)}
-  </Node>) as Node;
-  let fig: DotFigure | null = null;
-  const dotPerson = (x: number, y: number, unit = 6) => {
-    const [node, f] = makeFigure(WHITE, unit, x, y);
-    root.add(node);
-    fig = f;
-  };
-  switch (i % 10) {
-    case 0: // headlines obscure the person who wants primary evidence
-      dotPerson(-265, 235, 8);
-      root.add(page(228, -10, 0.55));
-      root.add(<Rect x={0} y={15} width={250} height={6} fill={WHITE} />);
-      root.add(<Circle x={108} y={15} size={26} fill={WHITE} />);
-      break;
-    case 1: // a real illustrated magnifier, not just an icon
-      root.add(page(-160, 15, 0.76));
-      root.add(<Circle x={230} y={-25} size={340} stroke={WHITE} lineWidth={24}
-        fill="rgba(233,228,218,0.07)" />);
-      root.add(<Rect x={352} y={155} width={240} height={23} rotation={43} fill={WHITE}
-        radius={12} />);
-      root.add(<Circle x={220} y={-24} size={60} stroke={WHITE} lineWidth={6} />);
-      break;
-    case 2: // the primary filing itself
-      root.add(page(0, 28, 0.95));
-      root.add(<Rect x={290} y={150} width={165} height={74}
-        stroke={WHITE} lineWidth={4} radius={8} rotation={-8}/>);
-      root.add(word('PUBLIC', 290, 148, 34, WHITE, 154));
-      break;
-    case 3: // buyers and other reporting events
-      root.add(boxLabel('PURCHASE', -240, -40, 440));
-      root.add(boxLabel('OTHER', 250, -40, 390));
-      root.add(<Circle x={-240} y={168} size={46} fill={WHITE}/>);
-      root.add(<Circle x={250} y={168} size={46} stroke={WHITE} lineWidth={7}/>);
-      root.add(<Rect x={0} y={170} width={250} height={5} fill={MUTED}/>);
-      break;
-    case 4: // sales tracked as movements, not a static percentage
-      root.add(word('SALE', 0, -80, 206, WHITE, 840));
-      root.add(pills(12, 0, 185, 13));
-      root.add(<Rect x={0} y={294} width={620} height={4} fill={WHITE}/>);
-      break;
-    case 5: // award and options: two distinct document types
-      root.add(boxLabel('AWARD', -235, -110, 400));
-      root.add(boxLabel('OPTION', 235, 95, 400));
-      root.add(<Circle x={-195} y={130} size={90} stroke={WHITE} lineWidth={6}/>);
-      root.add(<Circle x={0} y={20} size={20} fill={WHITE}/>);
-      root.add(<Circle x={76} y={20} size={20} fill={WHITE}/>);
-      root.add(<Rect x={36} y={20} width={60} height={4} fill={WHITE}/>);
-      break;
-    case 6: // common transaction codes; letters are real SEC codes
-      for (const [j, code] of ['P','S','A','M'].entries()) {
-        const x = -345 + j * 230;
-        root.add(<Rect x={x} y={-35} width={190} height={230} radius={12}
-          stroke={WHITE} fill={j === 1 ? WHITE : 'rgba(233,228,218,0.035)'} lineWidth={5}/>);
-        root.add(word(code, x, -35, 128, j === 1 ? BLACK : WHITE, 180));
-        root.add(<Circle x={x} y={152} size={20} fill={WHITE}/>);
-      }
-      root.add(word('EACH CODE HAS A MEANING', 0, 265, 38, WHITE, 900));
-      break;
-    case 7: // follow the document all the way to the SEC
-      root.add(page(-220, 0, 0.71));
-      root.add(<Rect x={70} y={30} width={200} height={5} fill={WHITE}/>);
-      root.add(<Circle x={168} y={30} size={23} fill={WHITE}/>);
-      root.add(boxLabel('SEC', 350, 30, 215));
-      break;
-    case 8: // linked records in a transparent information graph
-      dotPerson(-290, 200, 7);
-      root.add(page(115, -95, 0.57));
-      root.add(<Rect x={-68} y={-10} width={170} height={4} fill={WHITE}/>);
-      root.add(<Rect x={130} y={290} width={200} height={4} fill={WHITE}/>);
-      root.add(<Circle x={230} y={290} size={34} stroke={WHITE} lineWidth={6}/>);
-      break;
-    default: // clarity instead of an endless headline
-      root.add(page(180, 65, 0.66));
-      dotPerson(-245, 230, 7.5);
-      root.add(<Circle x={-70} y={20} size={190} stroke={WHITE} lineWidth={5}/>);
-      root.add(word('READ THE SOURCE', 0, 295, 46, WHITE, 890));
-  }
-  return {node: root, fig};
 }
 
-export function* editorialStory(view: View2D, data: RenderData) {
-  const s = stage(view, data);
+// A designed illustration of a Form 4, never a forged real SEC document.
+function form4(x: number, y: number, scale = 1): Node {
+  const root = (<Node x={x} y={y} scale={scale}>
+    <Rect width={590} height={750} fill={PAPER} radius={8}
+      shadowColor="#000000" shadowBlur={52} shadowOffsetY={20}/>
+    <Txt text="UNITED STATES SEC" x={0} y={-326} fontSize={24}
+      fontFamily="Georgia" fill={INK} fontWeight={700}/>
+    {line(0, -298, 480, 3, '#9b958b')}
+    <Txt text="FORM 4" fontFamily={F.head} fontWeight={800}
+      fontSize={94} y={-225} fill={INK}/>
+    <Txt text="STATEMENT OF CHANGES IN BENEFICIAL OWNERSHIP"
+      fontFamily={F.head} fontSize={22} fontWeight={600} textAlign="center"
+      width={460} textWrap y={-154} fill="#4a4742"/>
+    {line(0, -94, 480, 4, '#9b958b')}
+    {text("REPORTING PERSON", 0, -33, 28, '#59554f', 430, true)}
+    {line(0, 12, 460, 5, '#bfbab3')}
+    {text("TRANSACTION DETAILS", 0, 65, 28, '#59554f', 430, true)}
+    {line(0, 115, 460, 4, '#bfbab3')}
+    {line(0, 172, 460, 4, '#bfbab3')}
+    {line(0, 229, 460, 4, '#bfbab3')}
+    <Rect width={408} height={59} y={171} radius={6}
+      stroke={INK} lineWidth={4} fill="rgba(12,12,11,0.025)"/>
+    <Circle x={-195} y={171} size={18} fill={INK}/>
+    {line(0, 293, 460, 4, '#bfbab3')}
+  </Node>) as Node;
+  return root;
+}
+
+function scene(i: number, b: Beat): Node {
+  const root = (<Node />) as Node;
+  const title = b.headline || b.text;
+  root.add(text(title, 0, -605, title.length > 27 ? 78 : 100, PAPER, 940));
+  // A quiet technical rule, only inside the current scene—not a top-left watermark.
+  root.add(line(0, -468, 840, 2, '#403e39'));
+  switch (i % 8) {
+    case 0: {
+      root.add(card('INSIDER ACTIVITY', 'A HEADLINE', 155, -80, 545, 238));
+      root.add(dotPattern(165, 238, 8, 3, 37, 12));
+      root.add(text('One line rarely tells the whole story.', 110, 376, 31, DIM, 780));
+      break;
+    }
+    case 1: {
+      root.add(form4(170, -26, 0.81));
+      root.add(<Circle x={242} y={100} size={205} stroke={PAPER} lineWidth={10}
+        fill="rgba(233,228,218,0.09)"/>);
+      root.add(<Rect x={322} y={193} width={156} height={15}
+        fill={PAPER} radius={8} rotation={42}/>);
+      root.add(text('PUBLIC SEC RECORD', -30, 374, 28, DIM, 580, true));
+      break;
+    }
+    case 2: {
+      root.add(card('PURCHASE', 'OPEN-MARKET', -164, -146, 350, 175));
+      root.add(card('SALE', 'OPEN-MARKET', 238, -146, 350, 175));
+      root.add(card('AWARD', 'SHARE GRANT', -164, 114, 350, 175));
+      root.add(card('EXERCISE', 'OPTIONS', 238, 114, 350, 175));
+      root.add(dotPattern(175, 340, 8, 2, 27, 10));
+      break;
+    }
+    case 3: {
+      const codes = [['P', 'PURCHASE'], ['S', 'SALE'], ['A', 'AWARD'], ['M', 'EXERCISE']];
+      codes.forEach(([letter, label], j) => {
+        const x = -264 + j * 178;
+        root.add(<Rect x={x} y={-38} width={145} height={210} radius={11}
+          stroke={j === 0 ? PAPER : '#514d46'}
+          fill={j === 0 ? PAPER : '#151513'} lineWidth={3.5}/>);
+        root.add(text(letter, x, -56, 117, j === 0 ? INK : PAPER, 130));
+        root.add(text(label, x, 88, 17, DIM, 158, true));
+      });
+      root.add(text('SAME FILING. DIFFERENT MEANING.', 0, 280, 34, PAPER, 830));
+      break;
+    }
+    case 4: {
+      root.add(card('THE HEADLINE', 'SHORT VERSION', -150, -150, 430, 230));
+      root.add(line(94, 60, 305, 3, '#57534e'));
+      root.add(<Circle x={260} y={60} size={23} fill={PAPER}/>);
+      root.add(card('THE FILING', 'TRANSACTION CONTEXT', 170, 225, 490, 225));
+      break;
+    }
+    case 5: {
+      root.add(card('SEC FILING', 'ORIGINAL RECORD', 170, -265, 500, 190));
+      root.add(line(170, -100, 5, 122, PAPER));
+      root.add(<Circle x={170} y=-32 size={23} fill={PAPER}/>);
+      root.add(card('PLAIN LANGUAGE', 'TRANSACTION CODES', 170, 114, 500, 190));
+      root.add(dotPattern(170, 316, 8, 2, 31, 9));
+      break;
+    }
+    case 6: {
+      root.add(form4(153, -85, 0.74));
+      root.add(<Rect x={205} y={130} width={342} height={83} fill={INK}
+        stroke={PAPER} lineWidth={5} radius={6}/>);
+      root.add(text('OPEN SOURCE', 205, 132, 37, PAPER, 304, true));
+      root.add(text('SEC / EDGAR', 205, 354, 33, DIM, 500, true));
+      break;
+    }
+    default: {
+      root.add(form4(173, -68, 0.67));
+      root.add(dotPattern(172, 305, 10, 2, 28, 9));
+      root.add(text('Facts before interpretations.', 145, 403, 36, PAPER, 720));
+      break;
+    }
+  }
+  return root;
+}
+
+function grid(view: View2D) {
+  view.fill(INK);
+  view.add(<Rect width={COL} height={HEIGHT} fill={INK}/>);
+  const g = (<Node opacity={0.45} />) as Node;
+  for (let x = -540; x <= 540; x += 108) g.add(line(x, 0, 1.2, HEIGHT, '#1c1c1b'));
+  for (let y = -960; y <= 960; y += 108) g.add(line(0, y, COL, 1.2, '#1c1c1b'));
+  view.add(g);
+  view.add(line(0, -812, 888, 2, '#33312d'));
+}
+
+export function* editorialStory(view: View2D, data: RenderData): ThreadGenerator {
+  grid(view);
+  // One continuing protagonist, reused across the whole video, built by the
+  // same twelve dot positions and sizes as the actual Insidir favicon figure.
+  const [avatar, dot] = makeFigure(PAPER, 6.4, -336, 400);
+  view.add(avatar);
+  spawn(figureIn(dot, 0.9));
   let previous: Node | null = null;
-  for (const [i, b] of data.beats.entries()) {
-    if (data.end_card_start !== null && b.start >= data.end_card_start) break;
-    yield* until(b.start);
+  for (const [i, beat] of data.beats.entries()) {
+    if (data.end_card_start !== null && beat.start >= data.end_card_start) break;
+    yield* until(Math.max(0, beat.start - 0.40));
     if (previous) {
-      yield* whipOut(s);
+      yield* previous.opacity(0, 0.32, easeInOutCubic);
       previous.remove();
-      s.content().x(0);
     }
-    const {node, fig} = composition(i, b);
-    const content = (<Node opacity={0} scale={0.8} y={55}>{node}</Node>) as Node;
-    s.content().add(content);
-    if (i > 0) spawn(whipIn(s));
-    spawn(punch(s, Math.max(0.7, b.end - b.start), 1.07));
-    if (i === 0 || i === 2 || i === 6) spawn(flashHit(s, 0.17));
-    if (fig) {
-      spawn(figureIn(fig, 0.55));
-      spawn(setPose(fig, b.pose || 'explain', 0.38));
-    }
+    yield* until(beat.start);
+    const panel = scene(i, beat);
+    panel.opacity(0);
+    panel.y(28);
+    panel.scale(0.975);
+    view.add(panel);
+    // No jump-cuts or white flashes. The information quietly changes while Dot
+    // follows the primary filing from headline to transaction code to source.
+    spawn(setPose(dot, ['think','point','explain','point','shrug','explain','pointup','cheer'][i % 8], 0.7));
+    spawn(dot.root().x([-336, -340, -360, -325, -350, -320, -335, -315][i % 8], 0.8, easeInOutCubic));
     yield* all(
-      content.opacity(1, 0.32),
-      content.scale(1, 0.57, easeOutBack),
-      content.y(0, 0.54, easeOutExpo),
+      panel.opacity(1, 0.64, easeOutCubic),
+      panel.y(0, 0.72, easeOutCubic),
+      panel.scale(1, 0.88, easeOutCubic),
     );
-    spawn(content.scale(1.04, Math.max(0.5, b.end - b.start - 0.65), linear));
-    previous = content;
+    previous = panel;
   }
   if (data.end_card_start !== null) {
-    yield* until(data.end_card_start);
+    yield* until(Math.max(0, data.end_card_start - 0.44));
     if (previous) {
-      yield* previous.opacity(0, 0.24);
+      yield* previous.opacity(0, 0.4);
       previous.remove();
     }
-    const [node, fig] = makeFigure(WHITE, 10, 0, -360);
-    s.content().add(node);
-    yield* figureIn(fig, 0.6);
-    yield* setPose(fig, 'cheer', 0.28);
+    // Native end card (with insidir. + URL) is added by the existing FFmpeg
+    // composer. The only persistent icon is Dot, not a watermark.
+    yield* all(dot.root().position([0, -405], 0.75, easeInOutCubic), dot.root().scale(0.89, 0.75));
+    yield* setPose(dot, 'stand', 0.55);
   }
   yield* until(data.total);
 }
