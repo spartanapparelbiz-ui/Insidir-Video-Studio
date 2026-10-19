@@ -41,3 +41,4 @@ Music you add must be licensed for commercial use. The studio ships none.
 | OpenCV | Optical flow, scoring, edges | Apache-2.0 |
 | CLIP ViT-B/32 (optional) | Prompt adherence score | MIT |
 | RIFE (rife-ncnn-vulkan), Real-ESRGAN (realesrgan-ncnn-vulkan), GFPGAN | Optional if you install them | MIT, BSD-3-Clause, Apache-2.0 (check model weights) |
+| Real-ESRGAN RRDBNet generator (re-implemented in `gen/upscale.py`) and RealESRGAN_x4plus weights (downloaded on first AI upscale) | Generate: AI upscaling | BSD-3-Clause (Xintao Wang et al.) |

@@ -276,9 +276,24 @@ On the **Models** tab, each model shows its size, VRAM, licence and how it will 
      - de-flicker,
      - enhance faces (GFPGAN, if installed),
      - interpolate to 24/30/60 fps (RIFE if installed, else FFmpeg motion-compensated interpolation),
-     - upscale 2×/4× (Real-ESRGAN if installed, else Lanczos),
+     - upscale 2×/4× with Real-ESRGAN (the ncnn binary if installed, otherwise the built-in PyTorch version, whose weights download once at 64 MB; "Fast" uses Lanczos),
+     - film finish (fine grain and micro-contrast against the waxy look of generated surfaces),
      - add sound,
      - encode to H.264, H.265, ProRes or WebM.
+- **Quality levels** (Create → Output):
+
+  | Level | Steps | Takes | Detail pass | Upscale | Film finish |
+  | --- | --- | --- | --- | --- | --- |
+  | Draft | 60% | 1 | – | – | – |
+  | Standard | model default | 1 | – | – | – |
+  | High | 125% | best of 2 | yes | AI 2× | yes |
+  | Max | 150% | best of 3 | yes | AI 2× | yes |
+
+  - The **detail pass** works like a "hires fix" for video. It enlarges the best take 1.5×, then a Wan text-to-video model re-denoises it lightly (strength 0.3). Composition and motion stay; the model paints genuine fine detail at the larger size. It needs a Wan text-to-video model (Wan 2.1 T2V 1.3B is enough).
+  - The Wan noise schedule (flow shift) is matched to the resolution: 3.0 at 480p, 5.0 at 720p, as the model authors recommend.
+  - Every switch can still be set by hand.
+  - What decides quality most is the model and its native resolution. A 14B model at 720p on a GPU beats any amount of post-processing on a 1.3B model at a small size, and the engine warns when you go below a model's native size.
+  - On a CPU, every level above Standard multiplies an already long wait. The AI upscaler alone takes about a minute per frame.
 - **Sound**: ambience matched to the prompt (rain, wind, city, forest, ocean, fire, crowd) and effects placed on the video's own motion peaks. Everything is synthesised locally, so there's nothing to license.
 - **Film**: a description or script becomes scenes and shots with varied coverage and camera moves. You can also copy a prompt for Claude and paste back its JSON shot list. Then:
   - storyboard stills (one frame per shot),

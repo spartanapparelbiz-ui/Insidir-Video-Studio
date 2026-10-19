@@ -104,10 +104,11 @@ def interpolate(src: Path, out: Path, fps_in: int, fps_out: int, log=None) -> Pa
     return out
 
 
-def upscale(src: Path, out: Path, factor: int, log=None) -> Path:
+def upscale(src: Path, out: Path, factor: int, log=None, ai: bool = True) -> Path:
+    """ai=False forces the fast Lanczos path (seconds instead of minutes on a CPU)."""
     t = tools()
     info = media.probe(src)
-    if t["realesrgan"]:
+    if ai and t["realesrgan"]:
         work = out.parent / "esrgan"
         shutil.rmtree(work, ignore_errors=True)
         (work / "in").mkdir(parents=True)
@@ -123,11 +124,21 @@ def upscale(src: Path, out: Path, factor: int, log=None) -> Path:
         if log:
             log(f"upscaled x{factor} with Real-ESRGAN")
         return out
+    if ai:
+        try:
+            import torch  # noqa: F401  (Real-ESRGAN in PyTorch: GPU if present, else CPU)
+            from . import upscale as esrgan
+            return esrgan.upscale_video(src, out, factor, log=log)
+        except ImportError:
+            pass
+        except Exception as e:  # weights couldn't download, out of memory, ...: still deliver a video
+            if log:
+                log(f"AI upscaling failed ({e}); using Lanczos instead")
     w, h = info["width"] * factor, info["height"] * factor
     _run(["-i", str(src), "-vf", f"scale={w}:{h}:flags=lanczos,unsharp=5:5:0.5", "-c:v", "libx264", "-crf", "12",
           "-pix_fmt", "yuv420p", str(out)], log)
     if log:
-        log(f"upscaled x{factor} with Lanczos (install Real-ESRGAN for AI upscaling)")
+        log(f"upscaled x{factor} with Lanczos (AI upscaling needs PyTorch)")
     return out
 
 
@@ -139,6 +150,17 @@ def stabilize(src: Path, out: Path, log=None) -> Path:
               "-c:v", "libx264", "-crf", "10", "-pix_fmt", "yuv420p", str(out)], log)
     else:
         _run(["-i", str(src), "-vf", "deshake", "-c:v", "libx264", "-crf", "10", "-pix_fmt", "yuv420p", str(out)], log)
+    return out
+
+
+def film_finish(src: Path, out: Path, log=None) -> Path:
+    """The last 5%: a gentle sharpen to crisp edges and a whisper of moving film grain, which
+    breaks up the waxy smoothness of generated (and upscaled) surfaces so skin, fabric and
+    foliage read as photographed."""
+    _run(["-i", str(src), "-vf", "unsharp=5:5:0.35:3:3:0.0,noise=alls=3:allf=t+u", "-c:v", "libx264", "-crf", "10",
+          "-pix_fmt", "yuv420p", str(out)], log)
+    if log:
+        log("film finish: fine sharpen + subtle grain")
     return out
 
 
@@ -184,16 +206,20 @@ QUALITY_CRF = {"max": 12, "high": 16, "balanced": 20, "small": 26}
 def finish(src: Path, out: Path, fps: int, opts: dict, log=None, progress=None) -> Path:
     """Apply the requested improvements in a sensible order, then encode the final file.
 
-    opts: stabilize, deflicker, faces, upscale (1|2|4), fps (target), codec, quality, audio (path)."""
+    opts: stabilize, deflicker, faces, upscale (1|2|4), upscaler (ai|fast), film_finish, fps (target), codec,
+    quality, audio (path)."""
     progress = progress or (lambda f, msg="": None)
     work = out.parent
     work.mkdir(parents=True, exist_ok=True)
     cur, cur_fps = src, fps
     steps = [k for k in ("stabilize", "deflicker", "faces") if opts.get(k)]
-    if opts.get("fps") and int(opts["fps"]) > fps:
-        steps.append("interpolate")
+    # upscale before interpolating: the AI upscaler then runs on fewer frames
     if int(opts.get("upscale") or 1) > 1:
         steps.append("upscale")
+    if opts.get("fps") and int(opts["fps"]) > fps:
+        steps.append("interpolate")
+    if opts.get("film_finish"):
+        steps.append("film_finish")
     for i, step in enumerate(steps):
         progress(i / max(1, len(steps)), step.capitalize())
         nxt = work / f"post_{i}_{step}.mp4"
@@ -207,7 +233,9 @@ def finish(src: Path, out: Path, fps: int, opts: dict, log=None, progress=None) 
             cur_fps = int(opts["fps"])
             cur = interpolate(cur, nxt, fps, cur_fps, log)
         elif step == "upscale":
-            cur = upscale(cur, nxt, int(opts["upscale"]), log)
+            cur = upscale(cur, nxt, int(opts["upscale"]), log, ai=opts.get("upscaler", "ai") != "fast")
+        elif step == "film_finish":
+            cur = film_finish(cur, nxt, log)
     if opts.get("sound") and not opts.get("audio"):
         # synthesised ambience + effects timed to the on-screen motion
         from . import audio

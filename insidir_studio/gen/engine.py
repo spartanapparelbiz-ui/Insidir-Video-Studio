@@ -80,6 +80,61 @@ class Spec:
     control_scale: float = 1.0
     strength: float = 0.7              # v2v: how much to change the source
     post: dict = field(default_factory=dict)
+    quality: str = "standard"          # draft | standard | high | max (see QUALITY)
+    refine: bool | None = None         # second detail pass at a higher resolution (None = by quality)
+
+
+# What each quality level adds. Only fills in what the user didn't set explicitly.
+QUALITY = {
+    "draft": {"steps": 0.6, "variations": 1, "refine": False, "upscale": 1, "finish": False},
+    "standard": {"steps": 1.0, "variations": 1, "refine": False, "upscale": 1, "finish": False},
+    "high": {"steps": 1.25, "variations": 2, "refine": True, "upscale": 2, "finish": True},
+    "max": {"steps": 1.5, "variations": 3, "refine": True, "upscale": 2, "finish": True},
+}
+
+
+def apply_quality(spec: "Spec", m: dict) -> tuple[int, int, bool, dict]:
+    """(steps, variations, refine, post options) for the chosen quality level."""
+    q = QUALITY.get(spec.quality, QUALITY["standard"])
+    steps = spec.steps or max(4, int(round(m["default"]["steps"] * q["steps"])))
+    variations = spec.variations if spec.variations > 1 else q["variations"]
+    refine = q["refine"] if spec.refine is None else bool(spec.refine)
+    opts = dict(spec.post)
+    opts.setdefault("upscale", q["upscale"])
+    opts.setdefault("film_finish", q["finish"])
+    return steps, variations, refine, opts
+
+
+def tune_scheduler(pipe, family: str, w: int, h: int, log=None) -> None:
+    """Wan's noise schedule: the authors use flow shift 3.0 at 480p and 5.0 at 720p. A shift
+    matched to the resolution keeps fine detail at higher sizes instead of washing it out."""
+    if not family.startswith("wan") or family == "wan-tiny":
+        return
+    cfg = dict(pipe.scheduler.config)
+    key = "flow_shift" if "flow_shift" in cfg else ("shift" if "shift" in cfg else None)
+    if not key:
+        return
+    want = 5.0 if w * h >= 0.8 * 1280 * 720 else 3.0
+    if abs(float(cfg[key]) - want) > 1e-6:
+        pipe.scheduler = type(pipe.scheduler).from_config(cfg, **{key: want})
+        if log:
+            log(f"noise schedule: flow shift {want} for {w}x{h}")
+
+
+def refiner_model(model_id: str) -> str | None:
+    """A plain Wan text-to-video model (its weights power video-to-video) for the detail pass."""
+    m = MODELS[model_id]
+    if m.get("test_only"):
+        return model_id
+    if not m["family"].startswith("wan"):
+        return None
+    if m["family"] == "wan" and "t2v" in m["tasks"]:
+        return model_id
+    have = manager.installed_set()
+    for k in ("wan2.1-t2v-14b", "wan2.1-t2v-1.3b"):
+        if k in have:
+            return k
+    return None
 
 
 ASPECTS = {"16:9": (16, 9), "9:16": (9, 16), "1:1": (1, 1), "4:5": (4, 5), "21:9": (21, 9), "4:3": (4, 3)}
@@ -236,6 +291,7 @@ def run_chunk(pipe, model_id: str, task: str, spec: Spec, text: str, negative: s
         pe, ne = embeds
         pipe.encode_prompt = lambda *a, **k: (pe, ne)
     name = type(pipe).__name__
+    tune_scheduler(pipe, fam, w, h)
     if name == "WanVACEPipeline":
         video, mask = vace_inputs(task, n, w, h, image=image, last=last, prior=prior, control=control,
                                   source=source, masks=masks)
@@ -285,6 +341,48 @@ def frames_to_pil(frames: np.ndarray) -> list:
     return [Image.fromarray(f) for f in frames]
 
 
+def refine_pass(model_id: str, src: Path, built: dict, embeds, w: int, h: int, fps: int, steps: int, guidance: float,
+                seed: int, out_dir: Path, on_step=None, log=None, cancel=None) -> Path:
+    """Hi-res detail pass ("hires fix" for video): enlarge the chosen take 1.5x, then let a Wan
+    text-to-video model re-denoise it lightly (strength 0.3). Composition and motion stay; the
+    model paints real texture at the higher resolution instead of an upscaler guessing it."""
+    import torch
+    from PIL import Image
+    m = MODELS[model_id]
+    fam = m["family"]
+    mult = 16
+    rw = int(round(w * 1.5 / mult)) * mult
+    rh = int(round(h * 1.5 / mult)) * mult
+    # stay within what the model handles well (about 1.3x its native area)
+    cap = m["default"]["width"] * m["default"]["height"] * 1.3 if not m.get("test_only") else rw * rh
+    if rw * rh > cap:
+        k = math.sqrt(cap / (rw * rh))
+        rw, rh = int(rw * k / mult) * mult, int(rh * k / mult) * mult
+    frames = load_video(str(src), rw, rh)
+    frames = [f.resize((rw, rh), Image.LANCZOS) for f in frames]
+    pipe = manager.load(model_id, "v2v", log=log, without_text_encoder=embeds is not None)
+    tune_scheduler(pipe, fam, rw, rh, log)
+    if embeds is not None:
+        pe, ne = embeds
+        pipe.encode_prompt = lambda *a, **k: (pe, ne)
+
+    def stop(p, i, t, kw):
+        if cancel is not None and cancel.is_set():
+            raise Cancelled()
+        return kw
+
+    out = pipe(video=frames, prompt=built["prompt"], negative_prompt=built["negative"], height=rh, width=rw,
+               num_inference_steps=max(8, int(steps * 0.6)), strength=0.3, guidance_scale=guidance,
+               generator=torch.Generator(device="cpu").manual_seed(seed), output_type="np",
+               callback_on_step_end=on_step or stop).frames
+    arr = to_uint8(out[0] if getattr(out, "ndim", 0) == 5 or isinstance(out, (list, tuple)) else out)
+    path = out_dir / "refined.mp4"
+    post.write_video(arr, fps, path)
+    if log:
+        log(f"detail pass at {rw}x{rh} with {m['name']} (strength 0.3)")
+    return path
+
+
 # ------------------------------------------------------------------ public entry
 
 def generate(spec: Spec, out_dir: Path, progress=None, cancel: threading.Event | None = None, log=None) -> dict:
@@ -305,8 +403,11 @@ def generate(spec: Spec, out_dir: Path, progress=None, cancel: threading.Event |
                                 characters=spec.characters, extra_negative=spec.negative)
     w, h, chunk, total, fps = plan_size(spec, m)
     d = m["default"]
-    steps = spec.steps or d["steps"]
+    steps, n_variations, refine, post_opts = apply_quality(spec, m)
     guidance = spec.guidance or prompts.guidance_for(spec.adherence, d["guidance"])
+    if w * h < 0.7 * d["width"] * d["height"] and spec.seconds > 0:
+        log(f"note: {w}x{h} is below this model's native {d['width']}x{d['height']}; detail and anatomy suffer at "
+            f"small sizes (use upscaling for a bigger file instead)")
     seed = spec.seed if spec.seed >= 0 else int(time.time() * 1000) % 2_147_483_647
     log(f"{m['name']}: {spec.task} {w}x{h}, {total} frames ({total / fps:.1f}s @ {fps} fps), {steps} steps, "
         f"guidance {guidance}, seed {seed}")
@@ -357,7 +458,7 @@ def generate(spec: Spec, out_dir: Path, progress=None, cancel: threading.Event |
     pipe_name = type(manager.load(spec.model, spec.task, log=log, without_text_encoder=split)).__name__
 
     n_chunks = 1 + max(0, math.ceil((total - chunk) / max(1, chunk - max(1, chunk // 4))))
-    total_steps = steps * n_chunks * max(1, spec.variations)
+    total_steps = steps * n_chunks * max(1, n_variations)
     done = {"n": 0}
 
     def on_step(p, i, t, kwargs):
@@ -368,7 +469,7 @@ def generate(spec: Spec, out_dir: Path, progress=None, cancel: threading.Event |
         return kwargs
 
     candidates = []
-    for v in range(max(1, spec.variations)):
+    for v in range(max(1, n_variations)):
         s = seed + v
         frames_all: list = []
         prior = None
@@ -420,10 +521,21 @@ def generate(spec: Spec, out_dir: Path, progress=None, cancel: threading.Event |
     best = max(candidates, key=lambda c: c["scores"]["total"])
     log(f"best: {Path(best['path']).name} (score {best['scores']['total']:.3f})")
 
+    finish_src = Path(best["path"])
+    if refine and spec.seconds > 0:
+        rm = refiner_model(spec.model)
+        if rm:
+            progress(0.84, "Detail pass")
+            finish_src = refine_pass(rm, finish_src, built, embeds if MODELS[rm]["family"].startswith("wan") else None,
+                                     w, h, fps, steps, guidance, best["seed"], out_dir, on_step=None, log=log,
+                                     cancel=cancel)
+        else:
+            log("detail pass skipped: it needs a Wan text-to-video model (e.g. Wan 2.1 T2V 1.3B) downloaded")
     progress(0.86, "Finishing")
-    final = post.finish(Path(best["path"]), out_dir / "final.mp4", fps, {**spec.post, "prompt": built["prompt"]}, log=log,
+    final = post.finish(finish_src, out_dir / "final.mp4", fps, {**post_opts, "prompt": built["prompt"]}, log=log,
                         progress=lambda f, msg="": progress(0.86 + 0.13 * f, msg))
     result = {"final": str(final), "candidates": candidates, "best": best["path"], "prompt": built,
+              "quality": spec.quality, "refined": str(finish_src) != best["path"], "steps": steps,
               "size": [w, h], "fps": fps, "frames": best["frames"], "seed": best["seed"], "model": spec.model,
               "task": spec.task, "seconds": round(time.time() - t0, 1), "device": hw["name"]}
     (out_dir / "result.json").write_text(json.dumps(result, indent=2))

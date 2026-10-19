@@ -129,11 +129,25 @@ class QualityAndPostTests(unittest.TestCase):
 
     def test_post_interpolates_upscales_stabilises(self):
         src = _video(TMP / "post_src.mp4", "smooth")
-        out = post.finish(src, TMP / "post" / "final.mp4", 12, {"fps": 24, "upscale": 2, "stabilize": True,
-                                                              "deflicker": True}, log=lambda m: None)
+        out = post.finish(src, TMP / "post" / "final.mp4", 12, {"fps": 24, "upscale": 2, "upscaler": "fast",
+                                                              "stabilize": True, "deflicker": True,
+                                                              "film_finish": True}, log=lambda m: None)
         info = media.probe(out)
         self.assertEqual((info["width"], info["height"]), (192, 128))
         self.assertAlmostEqual(post._fps(out), 24, delta=0.5)
+
+    @unittest.skipUnless(HAVE_TORCH, "PyTorch not installed")
+    def test_ai_upscaler_is_4x_and_writes_video(self):
+        from insidir_studio.gen import upscale
+        upscale._model.update(net=upscale._net().eval(), dev="cpu")   # random weights: shapes only, no download
+        try:
+            f = upscale.upscale_frame(np.zeros((20, 30, 3), np.uint8), tile=16, pad=4)
+            self.assertEqual(f.shape, (80, 120, 3))
+            out = upscale.upscale_video(_video(TMP / "up_src.mp4", "smooth", n=3, size=(32, 16)), TMP / "up.mp4", 2)
+            info = media.probe(out)
+            self.assertEqual((info["width"], info["height"]), (64, 32))
+        finally:
+            upscale._model.clear()
 
     def test_crossfade_join_has_no_seam(self):
         a = [np.full((4, 4, 3), 0, np.uint8)] * 6
@@ -233,6 +247,20 @@ class EngineTests(unittest.TestCase):
         self.assertTrue(info["has_audio"] and info["has_video"])
         self.assertEqual(r["shots"], 3)
         self.assertTrue(all(sh["take"] for sh in shots))  # each shot keeps its take for single-shot regeneration
+
+    def test_quality_presets_add_steps_takes_and_a_detail_pass(self):
+        from insidir_studio.gen.engine import Spec, apply_quality
+        m = models.MODELS["wan2.1-t2v-1.3b"]
+        self.assertEqual(apply_quality(Spec(quality="draft"), m)[:3], (int(round(m["default"]["steps"] * 0.6)), 1, False))
+        steps, var, refine, opts = apply_quality(Spec(quality="max", post={"upscale": 1}), m)
+        self.assertEqual((var, refine, opts["upscale"], opts["film_finish"]), (3, True, 1, True))   # user's choice wins
+        self.assertGreater(steps, m["default"]["steps"])
+        r = self.gen(task="t2v", seconds=1, quality="high", post={"upscaler": "fast"})
+        self.assertTrue(r["refined"])
+        self.assertEqual(len(r["candidates"]), 2)
+        self.assertTrue((Path(r["final"]).parent / "refined.mp4").exists())
+        info = media.probe(r["final"])
+        self.assertGreater(info["width"], r["size"][0] * 2)        # ~1.5x detail pass (snapped to 16), then 2x upscale
 
     def test_cancel_stops_generation(self):
         from insidir_studio.gen.engine import Cancelled, Spec, generate

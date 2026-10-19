@@ -56,9 +56,23 @@ async function boot() {
 function defaults(task) {
   return { task, model: G.st.recommended[task] || "", prompt: "", negative: "", raw_prompt: false, camera: [], camera_speed: "medium",
     lens: "", lighting: "", style: "photoreal", motion: 0.5, adherence: 0.5, aspect: "16:9", seconds: 5, fps: 0, steps: 0,
-    seed: -1, variations: 1, image: "", last_image: "", video: "", mask: "", references: [], character_ids: [],
+    seed: -1, variations: 1, quality: "standard", refine: null, image: "", last_image: "", video: "", mask: "", references: [], character_ids: [],
     control: "none", control_scale: 1.0, strength: 0.7,
-    post: { stabilize: false, deflicker: false, faces: false, fps: 0, upscale: 1, codec: "h264", quality: "high", sound: true } };
+    post: { stabilize: false, deflicker: false, faces: false, fps: 0, upscale: 1, upscaler: "ai", film_finish: false, codec: "h264", quality: "high", sound: true } };
+}
+
+// Mirrors engine.QUALITY so the switches below show what each level turns on.
+const QUALITY = {
+  draft: { variations: 1, refine: false, upscale: 1, finish: false, hint: "Fewer steps: a quick look at composition and motion." },
+  standard: { variations: 1, refine: false, upscale: 1, finish: false, hint: "The model's own recommended settings." },
+  high: { variations: 2, refine: true, upscale: 2, finish: true, hint: "25% more steps, best of 2 takes, a detail pass at 1.5× size, AI upscale 2×, film finish." },
+  max: { variations: 3, refine: true, upscale: 2, finish: true, hint: "50% more steps, best of 3 takes, detail pass, AI upscale 2×, film finish. Slowest." },
+};
+
+function setQuality(f, q) {
+  const Q = QUALITY[q];
+  Object.assign(f, { quality: q, variations: Q.variations, refine: null });
+  Object.assign(f.post, { upscale: Q.upscale, film_finish: Q.finish });
 }
 
 function hwPills() {
@@ -67,7 +81,7 @@ function hwPills() {
   const pill = (cls, text, title) => el.append(h("span", { class: "pill " + cls, title }, text));
   pill(hw.device === "cuda" ? "ok" : hw.ready ? "off" : "bad", hw.device === "cuda" ? `${hw.name} · ${hw.vram_gb} GB` : hw.name, hw.reason);
   pill(G.st.tools.rife ? "ok" : "off", G.st.tools.rife ? "RIFE" : "Interp: FFmpeg MCI", "Frame interpolation");
-  pill(G.st.tools.realesrgan ? "ok" : "off", G.st.tools.realesrgan ? "Real-ESRGAN" : "Upscale: Lanczos", "Upscaling");
+  pill(G.st.tools.realesrgan || hw.ready ? "ok" : "off", G.st.tools.realesrgan ? "Real-ESRGAN" : hw.ready ? "Real-ESRGAN (PyTorch)" : "Upscale: Lanczos", "Upscaling");
 }
 
 const TABS = [["create", "Create"], ["film", "Film"], ["characters", "Characters"], ["models", "Models"], ["history", "History"]];
@@ -186,6 +200,10 @@ function viewCreate(el) {
       conflicts, final),
     h("div", { class: "panel" },
       h("h2", {}, "Output"),
+      field("Quality", seg([["draft", "Draft"], ["standard", "Standard"], ["high", "High"], ["max", "Max"]], f.quality, v => { setQuality(f, v); render(); }),
+        QUALITY[f.quality].hint + (st.hardware.device === "cuda" ? "" : " On a CPU every step up multiplies the wait: High and Max can take hours.")),
+      h("label", { class: "check" + ((f.refine ?? QUALITY[f.quality].refine) ? " on" : "") }, h("input", { type: "checkbox", checked: f.refine ?? QUALITY[f.quality].refine, onchange: e => set("refine", e.target.checked, true) }),
+        "Detail pass: re-render the best take at 1.5× size so the model paints real fine detail (needs a Wan text-to-video model downloaded)"),
       h("div", { class: "grid3" },
         field("Aspect", seg([["16:9", "16:9"], ["9:16", "9:16"], ["1:1", "1:1"], ["4:5", "4:5"], ["21:9", "21:9"]], f.aspect, v => set("aspect", v, true))),
         field("Duration", seg([[5, "5s"], [10, "10s"], [15, "15s"], [30, "30s"], [60, "60s"]], f.seconds, v => set("seconds", Number(v), true)), "Past the model's clip length, the engine continues the shot from its last frames and blends the joins."),
@@ -197,10 +215,13 @@ function viewCreate(el) {
     h("div", { class: "panel" },
       h("h2", {}, "Finishing"),
       h("div", { class: "fxgrid" }, pchk("stabilize", "Stabilise (vid.stab)"), pchk("deflicker", "Remove flicker"),
-        pchk("faces", "Enhance faces (GFPGAN, if installed)"), pchk("sound", "Sound: ambience + effects timed to the motion"), pchk("clip_score", "Score prompt adherence with CLIP (downloads 600 MB once)")),
+        pchk("faces", "Enhance faces (GFPGAN, if installed)"), pchk("sound", "Sound: ambience + effects timed to the motion"), pchk("clip_score", "Score prompt adherence with CLIP (downloads 600 MB once)"),
+        pchk("film_finish", "Film finish: fine grain + micro-contrast, so surfaces don't look waxy")),
       h("div", { class: "grid3" },
         field("Frame rate", seg([[0, "Native"], [24, "24"], [30, "30"], [60, "60"]], P.fps, v => { P.fps = Number(v); render(); }), "Higher rates are interpolated (RIFE if installed, else motion-compensated)."),
-        field("Upscale", seg([[1, "Off"], [2, "2×"], [4, "4×"]], P.upscale, v => { P.upscale = Number(v); render(); }), G.st.tools.realesrgan ? "Real-ESRGAN" : "Lanczos (install Real-ESRGAN for AI detail)"),
+        field("Upscale", h("div", { style: { display: "grid", gap: "6px" } }, seg([[1, "Off"], [2, "2×"], [4, "4×"]], P.upscale, v => { P.upscale = Number(v); render(); }),
+          seg([["ai", "AI (Real-ESRGAN)"], ["fast", "Fast (Lanczos)"]], P.upscaler, v => { P.upscaler = v; render(); })),
+          P.upscaler === "fast" ? "Plain resize: seconds, but no new detail." : G.st.tools.realesrgan ? "Real-ESRGAN (ncnn, GPU)" : `Real-ESRGAN in PyTorch (64 MB download once)${st.hardware.device === "cuda" ? "" : "; on a CPU about a minute per frame"}`),
         field("Format", seg([["h264", "MP4 H.264"], ["h265", "H.265"], ["prores", "ProRes"], ["webm", "WebM"]], P.codec, v => { P.codec = v; render(); })))),
     h("div", { class: "row" }, h("button", { class: "primary big", onclick: submit }, "Generate"),
       h("span", { class: "hint" }, "Queued jobs run one at a time on this machine. Follow them on the History tab.")));
