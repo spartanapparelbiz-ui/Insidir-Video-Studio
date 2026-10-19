@@ -5,6 +5,7 @@
 import {Circle, Node, Rect, Txt} from '@motion-canvas/2d';
 import {all, createRef, easeInOutCubic, easeInOutSine, type Reference, spawn, type ThreadGenerator, useTime} from '@motion-canvas/core';
 import {until} from './timing';
+import {F} from './fonts';
 
 export interface Look {
   name: string;
@@ -251,7 +252,7 @@ export function* gesture(p: Presenter, name: string, seconds = MOVE): ThreadGene
 export function nameTag(p: Presenter, y: number): Node {
   return (
     <Rect y={y} padding={[12, 26]} radius={40} fill="rgba(12,12,11,0.72)" stroke="rgba(233,228,218,0.25)" lineWidth={2} layout>
-      <Txt text={p.look.name.toUpperCase()} fontFamily="Inter" fontWeight={800} fontSize={34} letterSpacing={4} fill="#e9e4da" />
+      <Txt text={p.look.name.toUpperCase()} fontFamily={F.head} fontWeight={800} fontSize={34} letterSpacing={4} fill="#e9e4da" />
     </Rect>
   ) as Rect;
 }

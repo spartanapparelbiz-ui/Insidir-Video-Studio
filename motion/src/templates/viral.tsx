@@ -8,6 +8,7 @@ import {icon} from '../lib/icons';
 import {Sketch, drawOn} from '../lib/rough';
 import {until} from '../lib/timing';
 import {flashHit, kineticCaptions, punch, stage, whipIn, whipOut} from '../lib/cinema';
+import {F} from '../lib/fonts';
 
 export const norm = (t: string) => t.toUpperCase().replace(/[^A-Z0-9$%]/g, '');
 
@@ -25,7 +26,7 @@ export function statement(text: string, y: number, size: number) {
         <Txt
           ref={refs[i]}
           text={w.toUpperCase()}
-          fontFamily="Inter"
+          fontFamily={F.head}
           fontWeight={800}
           fontSize={size}
           lineHeight={size * 1.02}
@@ -43,7 +44,7 @@ export function statement(text: string, y: number, size: number) {
 
 export function eyebrow(text: string, y: number) {
   return (
-    <Txt text={text.toUpperCase()} fontFamily="Inter" fontWeight={700} fontSize={46} letterSpacing={6} fill="#a9a59d" y={y} opacity={0} />
+    <Txt text={text.toUpperCase()} fontFamily={F.head} fontWeight={700} fontSize={46} letterSpacing={6} fill="#a9a59d" y={y} opacity={0} />
   ) as Txt;
 }
 
@@ -61,7 +62,7 @@ export function number(b: Beat) {
   const big = (
     <Txt
       text={() => (m ? `${prefix}${Math.round(v())}` : b.emphasis.toUpperCase())}
-      fontFamily="Inter"
+      fontFamily={F.head}
       fontWeight={800}
       fontSize={m ? 400 : 150}
       letterSpacing={-12}
@@ -74,7 +75,7 @@ export function number(b: Beat) {
     />
   ) as Txt;
   const label = (
-    <Txt text={rest.toUpperCase()} fontFamily="Inter" fontWeight={800} fontSize={78} letterSpacing={-1} fill="#d9d5cd" y={-40} opacity={0} />
+    <Txt text={rest.toUpperCase()} fontFamily={F.head} fontWeight={800} fontSize={78} letterSpacing={-1} fill="#d9d5cd" y={-40} opacity={0} />
   ) as Txt;
   const show = () =>
     all(big.opacity(1, 0.1), big.scale(1, 0.5, easeOutBack), m ? v(target, 0.7, easeOutCubic) : v(0, 0), label.opacity(1, 0.4));

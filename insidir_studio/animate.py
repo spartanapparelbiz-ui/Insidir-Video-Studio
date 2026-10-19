@@ -15,7 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import config, media
+from . import config, fonts, media
 
 MOTION_DIR = config.REPO_DIR / "motion"
 _NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
@@ -233,6 +233,13 @@ def build_job(proj: dict, beats: list[dict], spans: list[tuple[float, float]], b
         "beats": out_beats,
         "words": [{"text": w.text, "start": w.start, "end": w.end, "beat": w.beat} for w in words],
         "frame_format": TEMPLATES.get(template, {}).get("frame_format", "png"),
+    }
+    st = proj.get("style") or {}
+    cap = fonts.get(st.get("caption_font"))
+    head = fonts.get(st.get("headline_font"), None)  # None: each template's own headline face
+    data["fonts"] = {
+        "caption": {w: f"/studio-fonts/{n}" for w, n in fonts.web_faces(cap).items()},
+        "head": {w: f"/studio-fonts/{n}" for w, n in fonts.web_faces(head).items()} if head else None,
     }
     if TEMPLATES.get(template, {}).get("lipsync") and voice_wav:
         data["character"] = (proj.get("avatar") or {}).get("character") or "dot"

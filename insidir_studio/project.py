@@ -55,7 +55,9 @@ def new(name: str, brief: dict | None = None) -> dict:
         "style": {"caption_highlight": settings.get("caption_highlight", "#FFFFFF"),
                   "transitions": settings.get("transitions", "cinematic"), "end_card": True,
                   "captions": "auto", "quality": "high", "ai_voice_label": False,
-                  "sfx": True, "music_bed": True},
+                  "sfx": True, "music_bed": True,
+                  # fonts.FONTS ids; an empty headline font keeps each template's own face
+                  "caption_font": settings.get("caption_font", "inter"), "headline_font": ""},
         "presenter": {"use_avatar": False},
         "music": {"enabled": True, "volume_db": -20},
         "assets": [],

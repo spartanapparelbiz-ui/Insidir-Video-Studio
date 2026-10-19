@@ -746,6 +746,9 @@ function tabLook(el) {
     h("div", { class: "panel" }, h("h2", {}, "Look"),
       h("div", { class: "grid2" }, field("Caption highlight", color, "The word being spoken lights up in this colour."),
         p.mode === "animated" ? field("Template", h("div", { class: "hint" }, (S.status.motion.templates[p.template] || {}).name || p.template, " (change it on the Brief tab)")) : field("Cuts", trans)),
+      h("div", { class: "grid2" },
+        fontPicker(st, "caption_font", "Caption font", false, p.script.beats[0]?.text || "Insiders have to report their trades"),
+        fontPicker(st, "headline_font", "Headline font", true, p.script.beats[0]?.overlay || p.script.title || "Insiders file too")),
       field("Caption timing", (() => h("select", { onchange: e => { st.captions = e.target.value; save(); } },
         [["auto", S.status.whisper.installed ? "Automatic: Faster Whisper" : "Automatic: estimated (Faster Whisper not installed)"],
          ["whisper", "Faster Whisper (most accurate)"], ["estimate", "Estimated from the audio (fastest)"]]
@@ -777,6 +780,29 @@ function tabLook(el) {
       av.usable ? h("div", { class: "notice ok" }, "Avatar model ready. Avatar shots are always labelled \"AI-generated presenter\".")
         : h("div", { class: "notice" }, "Avatar step unavailable: " + av.reasons.join(" "))),
     h("button", { class: "primary", onclick: () => { S.tab = "render"; renderProject(); } }, "Next: render"));
+}
+
+// Font choice with a live preview. The fonts are served by the studio itself (/fonts/...).
+function fontPicker(st, key, label, allowDefault, sample) {
+  const cat = S.status.fonts || {};
+  if (!document.getElementById("font-previews")) {
+    document.head.append(h("style", { id: "font-previews" }, Object.entries(cat)
+      .map(([id, f]) => `@font-face { font-family: "ivsprev-${id}"; src: url("/fonts/${f.preview}"); }`).join("\n")));
+  }
+  const cur = st[key] || (allowDefault ? "" : "inter");
+  const preview = h("div", { class: "font-preview" }, sample.toUpperCase());
+  const paint = (id) => {
+    preview.style.fontFamily = id ? `"ivsprev-${id}", sans-serif` : "inherit";
+    preview.textContent = id ? sample.toUpperCase() : "Each format keeps its own headline face (Inter, or the hand-drawn face in sketch templates). Screen-demo headlines follow the caption font.";
+    preview.classList.toggle("muted", !id);
+  };
+  const group = (g, title) => h("optgroup", { label: title }, Object.entries(cat).filter(([, f]) => f.group === g)
+    .map(([id, f]) => h("option", { value: id, selected: cur === id }, `${f.name} · ${f.note}`)));
+  const sel = h("select", { onchange: e => { st[key] = e.target.value; paint(e.target.value); save(); } },
+    allowDefault ? h("option", { value: "", selected: !cur }, "Template default") : null,
+    group("insidir", "From insidir.com"), group("display", "Display fonts"));
+  paint(cur);
+  return h("label", { class: "field" }, h("span", {}, label), sel, preview);
 }
 
 // ------------------------------------------------------------ 5 render

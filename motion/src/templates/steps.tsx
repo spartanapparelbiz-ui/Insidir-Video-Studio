@@ -7,6 +7,7 @@ import {icon} from '../lib/icons';
 import {R, Sketch, arrow, drawOn} from '../lib/rough';
 import {fadeRemove, nothing} from '../lib/fx';
 import {addFigure, all, endCard, figureIn, hand, makeHeadline, setup, until, writeHeadline} from '../lib/common';
+import {F} from '../lib/fonts';
 
 const BOX_W = 780;
 const BOX_H = 170;
@@ -38,10 +39,10 @@ export function* steps(view: View2D, data: RenderData) {
       <Node y={y} x={X}>
         <Sketch strokes={R.rect(-BOX_W / 2, -BOX_H / 2, BOX_W, BOX_H, hand(data, {seed: 800 + i}))} />
         <Sketch strokes={R.circle(-BOX_W / 2 + 85, 0, 104, hand(data, {stroke: data.palette.accent, seed: 820 + i}))} />
-        <Txt text={String(n + 1)} fontFamily="Patrick Hand" fontSize={84} fill={data.palette.accent} x={-BOX_W / 2 + 85} y={4} opacity={0} />
+        <Txt text={String(n + 1)} fontFamily={F.hand} fontSize={84} fill={data.palette.accent} x={-BOX_W / 2 + 85} y={4} opacity={0} />
         <Txt
           text={text}
-          fontFamily="Inter"
+          fontFamily={F.head}
           fontWeight={800}
           fontSize={text.length > 22 ? 46 : 58}
           lineHeight={text.length > 22 ? 52 : 64}

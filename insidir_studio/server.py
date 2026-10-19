@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import animate, avatar, compliance, config, media, project, render, script_writer, tts, ugc, whisper_align
+from . import animate, avatar, compliance, config, fonts, media, project, render, script_writer, tts, ugc, whisper_align
 
 JOBS: dict[str, dict] = {}
 RENDER_LOCK = threading.Lock()
@@ -53,6 +53,7 @@ def status_payload() -> dict:
         "avatar": avatar.status(settings),
         "motion": animate.status(),
         "whisper": whisper_align.status(),
+        "fonts": fonts.catalogue(),
         "limits": {"min": config.MIN_SECONDS, "max": config.MAX_SECONDS, "width": config.WIDTH,
                    "height": config.HEIGHT, "fps": config.FPS},
     }
@@ -206,8 +207,9 @@ class Handler(BaseHTTPRequestHandler):
     def _static(self, parts: list[str]) -> None:
         if not parts:
             return self._serve_file(config.WEB_DIR / "index.html", "text/html; charset=utf-8")
-        if parts[0] == "fonts" and len(parts) == 2 and parts[1].endswith(".otf"):
-            return self._serve_file(config.FONTS_DIR / Path(parts[1]).name, "font/otf")
+        if parts[0] == "fonts" and len(parts) == 2 and parts[1].endswith((".otf", ".ttf")):
+            return self._serve_file(config.FONTS_DIR / Path(parts[1]).name,
+                                    "font/ttf" if parts[1].endswith(".ttf") else "font/otf")
         rel = Path(*parts)
         target = (config.WEB_DIR / rel).resolve()
         if config.WEB_DIR.resolve() not in target.parents:

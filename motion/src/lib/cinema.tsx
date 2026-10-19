@@ -18,6 +18,7 @@ import {
 } from '@motion-canvas/core';
 import type {RenderData, Word} from './data';
 import {until} from './timing';
+import {F} from './fonts';
 
 export const W = 1080;
 export const H = 1920;
@@ -168,7 +169,7 @@ export function* kineticCaptions(layer: Node, data: RenderData, keywords: Set<st
             <Txt
               ref={txts[i]}
               text={clean(w.text)}
-              fontFamily="Inter"
+              fontFamily={F.cap}
               fontWeight={800}
               fontSize={key ? 112 : 100}
               letterSpacing={-2}

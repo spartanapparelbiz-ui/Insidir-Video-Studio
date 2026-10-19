@@ -12,7 +12,17 @@ declare global {
 async function main() {
   const data: RenderData = await (await fetch('/data.json', {cache: 'no-store'})).json();
   window.__IVS_DATA__ = data;
+  // the project's chosen fonts, as two aliases with one face per weight
+  const faces: FontFace[] = [];
+  for (const [alias, map] of [['IVS Caption', data.fonts?.caption], ['IVS Head', data.fonts?.head]] as const) {
+    for (const [weight, url] of Object.entries(map ?? {})) {
+      const face = new FontFace(alias, `url("${url}")`, {weight});
+      document.fonts.add(face);
+      faces.push(face);
+    }
+  }
   await Promise.all([
+    ...faces.map(f => f.load()),
     document.fonts.load('800 80px Inter'),
     document.fonts.load('700 80px Inter'),
     document.fonts.load('400 80px "Patrick Hand"'),

@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT))
 TMP = Path(tempfile.mkdtemp(prefix="ivs-test-"))
 os.environ["INSIDIR_STUDIO_HOME"] = str(TMP)
 
+from insidir_studio import fonts  # noqa: E402
 from insidir_studio import (animate, avatar, captions, sound, compliance, config, media, project, render,  # noqa: E402
                             script_writer, timeline, tts, ugc, whisper_align)
 
@@ -278,6 +279,32 @@ class UgcTests(unittest.TestCase):
             sc = script_writer.template_script(proj, FACTS, 0)
             self.assertFalse(compliance.has_errors(compliance.lint(sc, FACTS)), (mode, tpl))
         self.assertIn("first person is fine", script_writer.build_prompt({"mode": "ugc", "brief": {}, "assets": []}, FACTS))
+
+
+class FontTests(unittest.TestCase):
+    def test_catalogue_files_exist_and_include_insidir_fonts(self):
+        self.assertEqual(fonts.files_exist(), [])
+        insidir = {f["name"] for f in fonts.FONTS.values() if f["group"] == "insidir"}
+        self.assertEqual(insidir, {"Inter", "Source Serif 4", "JetBrains Mono"})
+        for f in fonts.FONTS.values():
+            self.assertTrue((config.FONTS_DIR / fonts.preview_file(f)).exists())
+
+    def test_nearest_weight_never_fakes_bold(self):
+        f = fonts.get("source-serif-4")
+        self.assertEqual(fonts.nearest(f, 800), "SourceSerif4-Black.ttf")   # tie -> heavier
+        self.assertEqual(fonts.nearest(f, 400), "SourceSerif4-SemiBold.ttf")
+        self.assertEqual(set(fonts.web_faces(fonts.get("anton")).values()), {"Anton-Regular.ttf"})
+        self.assertEqual(fonts.get("nope")["id"], "inter")
+        self.assertIsNone(fonts.get("", None))
+
+    def test_ass_uses_the_chosen_fonts(self):
+        w = [tts.Word("Hello", 0.0, 0.4, "b1")]
+        bt = [{"id": "b1", "start": 0, "speech_start": 0, "speech_end": 0.5, "end": 0.6}]
+        ass = captions.build_ass(w, [], [{"id": "b1", "text": "Hello", "overlay": "Hi"}], bt, 1.0, "#FFFFFF", "x", None, None,
+                                 caption_font="anton", headline_font="source-serif-4")
+        self.assertIn("Style: Caption,Anton,", ass)
+        self.assertIn("Style: Overlay,Source Serif 4,", ass)
+        self.assertIn("Style: Label,Inter,", ass)   # disclosure labels stay in the brand face
 
 
 @unittest.skipUnless(config.find_tool("ffmpeg"), "FFmpeg not installed")

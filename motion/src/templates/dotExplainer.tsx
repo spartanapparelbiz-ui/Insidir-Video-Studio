@@ -5,6 +5,7 @@ import type {RenderData} from '../lib/data';
 import {talk} from '../lib/figure';
 import {nothing, fadeRemove} from '../lib/fx';
 import {addFigure, all, drawOn, endCard, figureIn, makeHeadline, makeIconCard, makeWindow, poseFor, setup, until, writeHeadline} from '../lib/common';
+import {F} from '../lib/fonts';
 
 export function* dotExplainer(view: View2D, data: RenderData) {
   setup(view, data);
@@ -31,7 +32,7 @@ export function* dotExplainer(view: View2D, data: RenderData) {
       reveal = drawOn(visual, 0.9);
     }
     const emph = b.emphasis
-      ? ((<Txt text={b.emphasis} fontFamily="Patrick Hand" fontSize={78} fill={data.palette.accent} x={170} y={130} opacity={0} />) as Node)
+      ? ((<Txt text={b.emphasis} fontFamily={F.hand} fontSize={78} fill={data.palette.accent} x={170} y={130} opacity={0} />) as Node)
       : null;
     if (emph) view.add(emph);
     yield* all(

@@ -277,7 +277,7 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
     seg_dir.mkdir(parents=True, exist_ok=True)
     fonts = build / "fonts"
     fonts.mkdir(exist_ok=True)
-    for f in config.FONTS_DIR.glob("*.otf"):
+    for f in [*config.FONTS_DIR.glob("*.otf"), *config.FONTS_DIR.glob("*.ttf")]:
         shutil.copyfile(f, fonts / f.name)
 
     # animated templates render at 60 fps for smoother motion; the demo and UGC cuts stay at 30
@@ -385,6 +385,8 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
         end_card=end_card, end_card_start=end_card_start,
         ai_voice_label="AI voice" if proj.get("style", {}).get("ai_voice_label") else "",
         show_captions=not (mode == "animated" and animate.TEMPLATES.get(proj.get("template"), {}).get("own_captions")),
+        caption_font=proj.get("style", {}).get("caption_font"),
+        headline_font=proj.get("style", {}).get("headline_font") or proj.get("style", {}).get("caption_font"),
     )
     (build / "captions.ass").write_text(ass, encoding="utf-8")
 

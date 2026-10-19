@@ -7,6 +7,7 @@ import {icon} from '../lib/icons';
 import {R, Sketch, drawOn, scribble} from '../lib/rough';
 import {nothing} from '../lib/fx';
 import {addFigure, all, endCard, figureIn, fitSize, hand, setup, until, waitFor} from '../lib/common';
+import {F} from '../lib/fonts';
 
 export function* mythFact(view: View2D, data: RenderData) {
   setup(view, data);
@@ -23,7 +24,7 @@ export function* mythFact(view: View2D, data: RenderData) {
         <Sketch strokes={R.rect(-440, -280, 880, 560, hand(data, {seed: 600 + i}))} drawn />
         <Txt
           text={text}
-          fontFamily="Inter"
+          fontFamily={F.head}
           fontWeight={800}
           fontSize={fitSize(text, 96, 760)}
           lineHeight={fitSize(text, 96, 760) * 1.1}
@@ -41,7 +42,7 @@ export function* mythFact(view: View2D, data: RenderData) {
         <Node x={-290} y={-285} rotation={-6}>
           <Rect width={label.length * 44 + 70} height={96} fill={data.palette.bg} />
           <Sketch strokes={R.rect(-(label.length * 22 + 35), -48, label.length * 44 + 70, 96, hand(data, {stroke: color, seed: 640 + i}))} drawn />
-          <Txt text={label} fontFamily="Patrick Hand" fontSize={76} fill={color} />
+          <Txt text={label} fontFamily={F.hand} fontSize={76} fill={color} />
         </Node>,
       );
     }

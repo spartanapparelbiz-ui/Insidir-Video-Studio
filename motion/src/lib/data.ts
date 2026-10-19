@@ -54,6 +54,8 @@ export interface RenderData {
   character?: string;
   mouth?: number[];
   mouth_w?: number[];
+  // chosen fonts: weight -> font URL for the "IVS Caption" / "IVS Head" aliases (head null = template default)
+  fonts?: {caption: Record<string, string>; head: Record<string, string> | null};
   // chat template: who is texting
   chat?: {me: string; them: string};
 }

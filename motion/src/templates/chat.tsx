@@ -6,6 +6,7 @@ import type {Beat, RenderData, Word} from '../lib/data';
 import {figureIn, makeFigure, setPose, wave} from '../lib/figure';
 import {until} from '../lib/timing';
 import {flashHit, stage, whipIn, whipOut} from '../lib/cinema';
+import {F} from '../lib/fonts';
 
 const BOTTOM = 700; // y of the newest message's bottom edge
 const MAX_W = 760;
@@ -82,7 +83,7 @@ function bubble(b: Beat, words: Word[], me: boolean) {
       x={me ? 500 : -500}
     >
       {list.map((t, i) => (
-        <Txt ref={refs[i]} text={t} fontFamily="Inter" fontWeight={600} fontSize={50} lineHeight={66} fill={me ? ME_INK : THEM_INK} opacity={words.length ? 0.38 : 1} />
+        <Txt ref={refs[i]} text={t} fontFamily={F.cap} fontWeight={600} fontSize={50} lineHeight={66} fill={me ? ME_INK : THEM_INK} opacity={words.length ? 0.38 : 1} />
       ))}
     </Rect>
   ) as Rect;
@@ -108,8 +109,8 @@ function stat(b: Beat, me: boolean) {
   const node = (
     <Rect layout direction="column" alignItems="center" padding={[30, 48]} radius={48} fill={me ? ME_BG : THEM_BG}
           offset={[me ? 1 : -1, 1]} x={me ? 500 : -500}>
-      <Txt text={b.emphasis.toUpperCase()} fontFamily="Inter" fontWeight={800} fontSize={104} letterSpacing={-3} fill={me ? ME_INK : THEM_INK} />
-      {b.headline ? <Txt text={b.headline.toUpperCase()} fontFamily="Inter" fontWeight={700} fontSize={34} letterSpacing={3} fill={me ? '#55524c' : '#a9a59d'} /> : null}
+      <Txt text={b.emphasis.toUpperCase()} fontFamily={F.head} fontWeight={800} fontSize={104} letterSpacing={-3} fill={me ? ME_INK : THEM_INK} />
+      {b.headline ? <Txt text={b.headline.toUpperCase()} fontFamily={F.head} fontWeight={700} fontSize={34} letterSpacing={3} fill={me ? '#55524c' : '#a9a59d'} /> : null}
     </Rect>
   ) as Rect;
   return {node};

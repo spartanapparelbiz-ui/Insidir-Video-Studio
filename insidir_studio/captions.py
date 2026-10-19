@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 
-from . import config
+from . import config, fonts
 
 FONT = "Inter"
 
@@ -63,8 +63,18 @@ def _clean(word: str) -> str:
 
 def build_ass(words: list, shots: list[dict], beats: list[dict], beat_times: list[dict],
               total: float, highlight: str, disclaimer: str, end_card: dict | None,
-              end_card_start: float | None, ai_voice_label: str = "", show_captions: bool = True) -> str:
+              end_card_start: float | None, ai_voice_label: str = "", show_captions: bool = True,
+              caption_font: str | None = None, headline_font: str | None = None) -> str:
+    """caption_font / headline_font: ids from fonts.FONTS. Labels, the disclaimer and the end
+    card stay in Inter, the Insidir brand face."""
     W, H = config.WIDTH, config.HEIGHT
+    cf = fonts.get(caption_font)
+    hf = fonts.get(headline_font)
+    cap_name, cap_bold = cf["ass"]
+    head_name, head_bold = hf["ass"]
+    cap_size = round(84 * cf.get("scale", 1.0))
+    head_size = round(54 * hf.get("scale", 1.0))
+    b = lambda on: -1 if on else 0
     hl = _ass_color(highlight)
     header = f"""[Script Info]
 Title: Insidir Video Studio captions
@@ -77,8 +87,8 @@ YCbCr Matrix: TV.709
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Caption,{FONT},84,&H00A9AFB6,&H00A9AFB6,&H00101010,&H80000000,-1,0,0,0,100,100,0,0,1,7,3,5,60,60,0,1
-Style: Overlay,{FONT},54,&H00F4F1EA,&H00F4F1EA,&H00111111,&H00111111,-1,0,0,0,100,100,0,0,3,18,0,8,80,80,0,1
+Style: Caption,{cap_name},{cap_size},&H00A9AFB6,&H00A9AFB6,&H00101010,&H80000000,{b(cap_bold)},0,0,0,100,100,0,0,1,7,3,5,60,60,0,1
+Style: Overlay,{head_name},{head_size},&H00F4F1EA,&H00F4F1EA,&H00111111,&H00111111,{b(head_bold)},0,0,0,100,100,0,0,3,18,0,8,80,80,0,1
 Style: Label,{FONT},30,&H00F4F1EA,&H00F4F1EA,&H33111111,&H33111111,-1,0,0,0,100,100,1,0,3,10,0,7,40,40,0,1
 Style: EndHead,{FONT},150,&H00F4F1EA,&H00F4F1EA,&H00111111,&H00111111,-1,0,0,0,100,100,-2,0,1,0,0,5,60,60,0,1
 Style: EndLine,{FONT},52,&H00F4F1EA,&H00F4F1EA,&H00111111,&H00111111,-1,0,0,0,100,100,0,0,1,0,0,5,80,80,0,1

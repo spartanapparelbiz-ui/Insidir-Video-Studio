@@ -5,6 +5,7 @@ import {figureIn, makeFigure, setPose, wave, type DotFigure} from './figure';
 import {icon} from './icons';
 import {R, Sketch, drawOn, eraseOff, type RoughStyle} from './rough';
 import {until} from './timing';
+import {F} from './fonts';
 
 export const W = 1080;
 export const H = 1920;
@@ -76,7 +77,7 @@ export function makeHeadline(data: RenderData, text: string, y: number, size?: n
       <Txt
         ref={txt}
         text=""
-        fontFamily="Inter"
+        fontFamily={F.head}
         fontWeight={800}
         fontSize={fs}
         lineHeight={fs * 1.08}

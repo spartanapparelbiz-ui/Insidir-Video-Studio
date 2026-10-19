@@ -129,6 +129,18 @@ The style is a dark, chalk-on-ink hand-drawn explainer look. The palette is Insi
 
 Rendering a 30-second video takes about 1 minute on a typical laptop CPU.
 
+### Fonts
+
+**Voice & look** has a **Caption font** and a **Headline font**. Each shows a live preview as you pick.
+
+- **From insidir.com:** the fonts of the Insidir site itself:
+  - **Inter**, the interface font and the default,
+  - **Source Serif 4**, the site's headline serif,
+  - **JetBrains Mono**, its data font.
+- **Display fonts:** Montserrat, Poppins, Anton, Bebas Neue, Archivo Black, Space Grotesk, Permanent Marker and Patrick Hand.
+
+The caption font is used for the spoken-word captions, in every format, including the kinetic captions and chat bubbles of the animated templates. The headline font is used for headlines, big numbers and titles. Leave the headline font on **Template default** to keep each template's own face. The disclosure labels, disclaimer and end card always stay in Inter, the brand face. Every font is SIL Open Font License, so commercial use is allowed.
+
 ### How the length is kept to 20–35 s
 
 The studio voices the script and measures it. If it runs slightly over or under, it re-voices once at a speaking rate between 0.85× and 1.2×. If it's still outside 20–35 s, the render stops and tells you to cut or add a line. About 50–75 words is right.

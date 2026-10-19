@@ -6,6 +6,7 @@ import {talk} from '../lib/figure';
 import {R, Sketch, drawOn} from '../lib/rough';
 import {fadeRemove, nothing} from '../lib/fx';
 import {addFigure, all, endCard, figureIn, hand, makeHeadline, makeIconCard, poseFor, setup, until, writeHeadline} from '../lib/common';
+import {F} from '../lib/fonts';
 
 function split(e: string): [string, string] {
   const m = e.trim().match(/^([$€£]?\d[\d,.]*%?)\s*(.*)$/);
@@ -26,9 +27,9 @@ export function* bigNumber(view: View2D, data: RenderData) {
     if (b.emphasis) {
       const [big, rest] = split(b.emphasis);
       const size = big.length > 3 ? 300 : 400;
-      const num = (<Txt text={big} fontFamily="Inter" fontWeight={800} fontSize={size} fill={data.palette.ink} y={-330} scale={0.5} opacity={0} />) as Txt;
+      const num = (<Txt text={big} fontFamily={F.head} fontWeight={800} fontSize={size} fill={data.palette.ink} y={-330} scale={0.5} opacity={0} />) as Txt;
       const ring = (<Sketch strokes={R.ellipse(0, 0, Math.max(420, big.length * size * 0.62 + 140), size * 1.15, hand(data, {stroke: data.palette.accent, width: 10, seed: 900 + i, roughness: 2}))} y={-330} />) as Node;
-      const sub = (<Txt text={rest} fontFamily="Patrick Hand" fontSize={96} fill={data.palette.ink} y={-40} opacity={0} />) as Txt;
+      const sub = (<Txt text={rest} fontFamily={F.hand} fontSize={96} fill={data.palette.ink} y={-40} opacity={0} />) as Txt;
       view.add(ring);
       view.add(num);
       view.add(sub);

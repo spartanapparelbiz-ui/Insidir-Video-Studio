@@ -19,6 +19,7 @@ All required components are free and allow commercial use. Check the current ter
 | Whisper `base.en` model (Systran conversion of OpenAI Whisper) | Caption timing | MIT | Downloaded from Hugging Face on first setup |
 | Patrick Hand typeface (`@fontsource/patrick-hand`) | Hand-written labels in templates | SIL OFL 1.1 | |
 | Inter typeface (`insidir_studio/fonts`) | Captions and UI | SIL OFL 1.1 | Licence in `insidir_studio/fonts/OFL.txt` |
+| Source Serif 4, JetBrains Mono (the insidir.com fonts), Montserrat, Poppins, Anton, Bebas Neue, Archivo Black, Space Grotesk, Permanent Marker, Patrick Hand (`insidir_studio/fonts`) | Selectable caption and headline fonts | SIL OFL 1.1 | Published static weights from Fontsource, converted from WOFF2 to TTF with no other change (names kept, as Reserved Font Names require). Licences in `insidir_studio/fonts/licenses/` |
 | Anthropic Python SDK (optional) | Claude API path | MIT | Only if you install it; API use is billed by Anthropic |
 | Claude (claude.ai) | Script writing by copy and paste | Anthropic terms | Review Anthropic's terms for commercial use of outputs |
 
