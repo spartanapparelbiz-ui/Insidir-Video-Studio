@@ -20,7 +20,7 @@ from . import config, media
 MOTION_DIR = config.REPO_DIR / "motion"
 _NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
-PALETTE = {"bg": "#0c0c0b", "ink": "#e9e4da", "accent": "#ffd84d",
+PALETTE = {"bg": "#0c0c0b", "ink": "#e9e4da", "accent": "#ffffff",
            "up": "#2f996a", "down": "#f94144", "muted": "#77736c"}
 
 ICONS = ["document", "form", "magnifier", "clock", "calendar", "bell", "link", "check", "cross",

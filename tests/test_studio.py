@@ -119,11 +119,11 @@ class CaptionTests(unittest.TestCase):
         ws = [tts.Word("Hello", 0.1, 0.5, "b1"), tts.Word("there.", 0.5, 0.9, "b1")]
         shots = [{"start": 0, "duration": 2, "ai_presenter": True, "genuine": False}]
         ass = captions.build_ass(ws, shots, [{"id": "b1", "overlay": "Hi"}], [{"id": "b1", "start": 0, "end": 2}],
-                                 3.0, "#FFD84D", "Research tool. Not investment advice.", {"headline": "Insidir."}, 2.0)
+                                 3.0, "#FFFFFF", "Research tool. Not investment advice.", {"headline": "Insidir."}, 2.0)
         self.assertNotIn("AI voice", ass)  # off by default
         self.assertIn("AI-generated presenter", ass)  # always shown for AI presenters
         ass2 = captions.build_ass(ws, shots, [{"id": "b1", "overlay": "Hi"}], [{"id": "b1", "start": 0, "end": 2}],
-                                  3.0, "#FFD84D", "Research tool. Not investment advice.", None, None,
+                                  3.0, "#FFFFFF", "Research tool. Not investment advice.", None, None,
                                   ai_voice_label="AI voice")
         self.assertIn("AI voice", ass2)
         self.assertIn("Not investment advice", ass)

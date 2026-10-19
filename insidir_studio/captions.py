@@ -28,7 +28,7 @@ def _ts(t: float) -> str:
 def _ass_color(hex_color: str, alpha: int = 0) -> str:
     h = hex_color.lstrip("#")
     if len(h) != 6 or not re.fullmatch(r"[0-9a-fA-F]{6}", h):
-        h = "FFD84D"
+        h = "FFFFFF"
     r, g, b = h[0:2], h[2:4], h[4:6]
     return f"&H{alpha:02X}{b}{g}{r}".upper()
 
@@ -77,7 +77,7 @@ YCbCr Matrix: TV.709
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Caption,{FONT},84,&H00FFFFFF,&H00FFFFFF,&H00101010,&H80000000,-1,0,0,0,100,100,0,0,1,7,3,5,60,60,0,1
+Style: Caption,{FONT},84,&H00A9AFB6,&H00A9AFB6,&H00101010,&H80000000,-1,0,0,0,100,100,0,0,1,7,3,5,60,60,0,1
 Style: Overlay,{FONT},54,&H00F4F1EA,&H00F4F1EA,&H00111111,&H00111111,-1,0,0,0,100,100,0,0,3,18,0,8,80,80,0,1
 Style: Label,{FONT},30,&H00F4F1EA,&H00F4F1EA,&H33111111,&H33111111,-1,0,0,0,100,100,1,0,3,10,0,7,40,40,0,1
 Style: EndHead,{FONT},150,&H00F4F1EA,&H00F4F1EA,&H00111111,&H00111111,-1,0,0,0,100,100,-2,0,1,0,0,5,60,60,0,1
@@ -109,7 +109,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             e = g[wi + 1].start if wi + 1 < len(g) else g_end
             parts = []
             for j, t in enumerate(texts):
-                parts.append(f"{{\\c{hl}}}{t}{{\\c&H00FFFFFF&}}" if j == wi else t)
+                parts.append(f"{{\\c{hl}}}{t}{{\\c&H00A9AFB6&}}" if j == wi else t)
             pop = "{\\fscx78\\fscy78\\t(0,110,\\fscx104\\fscy104)\\t(110,170,\\fscx100\\fscy100)}" if wi == 0 else ""
             add(2, s, e, "Caption", f"{{\\an5\\pos({W // 2},{cap_y})}}{pop}{' '.join(parts)}")
 

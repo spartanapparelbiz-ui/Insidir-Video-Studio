@@ -66,7 +66,7 @@ export const SAMPLE: RenderData = {
   total: 12,
   end_card_start: 10,
   title: 'Sample',
-  palette: {bg: '#0c0c0b', ink: '#e9e4da', accent: '#ffd84d', up: '#2f996a', down: '#f94144', muted: '#77736c'},
+  palette: {bg: '#0c0c0b', ink: '#e9e4da', accent: '#ffffff', up: '#2f996a', down: '#f94144', muted: '#77736c'},
   beats: [
     {id: 'b1', start: 0, end: 3.4, speech_start: 0.1, text: 'Ever wonder what executives do with their own stock?', headline: 'Insiders file too', icon: 'eye', pose: 'wave', label: '', emphasis: '', asset: null, focus: [0.5, 0.5]},
     {id: 'b2', start: 3.4, end: 6.8, speech_start: 3.5, text: 'They report trades on a Form 4 within two business days.', headline: 'Form 4', icon: 'calendar', pose: 'point', label: 'FACT', emphasis: '2 business days', asset: null, focus: [0.5, 0.5]},

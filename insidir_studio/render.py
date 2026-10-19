@@ -19,6 +19,11 @@ class RenderError(RuntimeError):
     pass
 
 
+def _highlight(color: str | None) -> str:
+    # the old yellow default is retired; projects that saved it get white
+    return "#FFFFFF" if not color or color.upper() == "#FFD84D" else color
+
+
 # ----------------------------------------------------------------- geometry
 
 def _even(x: float) -> int:
@@ -323,7 +328,7 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
     end_card = (facts.get("end_card") or {}) if end_card_on else None
     ass = captions.build_ass(
         words, shots, caption_beats, nar.beats, total,
-        highlight=proj.get("style", {}).get("caption_highlight") or settings.get("caption_highlight", "#FFD84D"),
+        highlight=_highlight(proj.get("style", {}).get("caption_highlight") or settings.get("caption_highlight")),
         disclaimer=facts.get("disclaimer") or compliance.AUTO_DISCLAIMER,
         end_card=end_card, end_card_start=end_card_start,
         ai_voice_label="AI voice" if proj.get("style", {}).get("ai_voice_label") else "",

@@ -37,7 +37,7 @@ KOKORO_FILES = {
 DEFAULT_SETTINGS = {
     "voice": "studio_male",
     "speed": 1.0,
-    "caption_highlight": "#FFD84D",
+    "caption_highlight": "#FFFFFF",
     "transitions": "cinematic",  # or "cuts"
     "claude": {
         # Free path: copy the prompt into claude.ai and paste the reply back.

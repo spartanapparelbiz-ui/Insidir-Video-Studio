@@ -62,7 +62,7 @@ There are 23 doodle icons and 11 poses. Pick them per beat on the Script tab, or
 
 The templates live in `motion/src/templates/*.tsx`; the drawing helpers are in `motion/src/lib/`. Edit a template, then render a project to see the change.
 
-The style is a dark, chalk-on-ink hand-drawn explainer look. The palette is Insidir's paper and ink plus a yellow accent, set in `insidir_studio/animate.py` (`PALETTE`).
+The style is a dark, chalk-on-ink hand-drawn explainer look. The palette is Insidir's paper and ink, with bright white for emphasis (red and green only on MYTH/FACT cards), set in `insidir_studio/animate.py` (`PALETTE`).
 
 ## Making a video
 

@@ -518,7 +518,7 @@ function tabLook(el) {
     catch (e) { toast(e.message, true); }
     play.disabled = false; play.replaceChildren(ic("voice"), "Preview voice");
   } }, ic("voice"), "Preview voice");
-  const color = h("input", { type: "color", value: st.caption_highlight || "#FFD84D" });
+  const color = h("input", { type: "color", value: (!st.caption_highlight || st.caption_highlight.toUpperCase() === "#FFD84D" ? "#FFFFFF" : st.caption_highlight) });
   color.oninput = () => { st.caption_highlight = color.value; save(); };
   const trans = h("select", { onchange: e => { st.transitions = e.target.value; save(); } },
     [["cinematic", "Cinematic: hard cuts + quick transitions when the subject changes"], ["cuts", "Hard cuts only"]].map(([val, t]) => h("option", { value: val, selected: st.transitions === val }, t)));
