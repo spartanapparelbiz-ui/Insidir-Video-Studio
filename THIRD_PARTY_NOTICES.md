@@ -26,3 +26,18 @@ All required components are free and allow commercial use. Check the current ter
 The studio bundles no talking-avatar model. If you add one, you're responsible for its licence and the licence of every checkpoint it loads. The studio blocks engines it knows are non-commercial (for example Wav2Lip) when a project is marked commercial.
 
 Music you add must be licensed for commercial use. The studio ships none.
+
+## Generate workspace (downloaded on demand, not bundled)
+
+| Component | Use | Licence |
+|---|---|---|
+| PyTorch | Inference | BSD-3-Clause |
+| diffusers, transformers, accelerate (Hugging Face) | Model pipelines | Apache-2.0 |
+| Wan 2.1 / 2.2 models (Wan-AI) | Video generation | Apache-2.0 |
+| LTX-Video (Lightricks), SkyReels V2 (Skywork), HunyuanVideo (Tencent), CogVideoX 5B (Zhipu) | Optional video models | Custom licences: read each before commercial use (shown in the app) |
+| CogVideoX 2B | Optional video model | Apache-2.0 |
+| Depth Anything V2 Small | Depth for camera paths and motion transfer | Apache-2.0 |
+| ViTPose, RT-DETR | Pose for motion transfer | Apache-2.0 |
+| OpenCV | Optical flow, scoring, edges | Apache-2.0 |
+| CLIP ViT-B/32 (optional) | Prompt adherence score | MIT |
+| RIFE (rife-ncnn-vulkan), Real-ESRGAN (realesrgan-ncnn-vulkan), GFPGAN | Optional if you install them | MIT, BSD-3-Clause, Apache-2.0 (check model weights) |

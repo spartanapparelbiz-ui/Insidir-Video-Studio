@@ -1,0 +1,12 @@
+# AI video generation (Generate workspace). Installed by install.bat when an NVIDIA GPU is found,
+# or by hand:  .venv\Scripts\pip install -r requirements-generate.txt
+# PyTorch itself comes from the CUDA wheel index (see install.ps1) so it uses the GPU.
+diffusers==0.35.1
+transformers==4.56.1
+accelerate>=1.0
+sentencepiece
+ftfy
+huggingface_hub>=0.34
+opencv-python-headless>=4.9
+imageio
+imageio-ffmpeg

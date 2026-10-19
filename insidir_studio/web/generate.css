@@ -1,0 +1,21 @@
+/* Insidir Generate: layout on top of app.css */
+.gen { max-width: 1180px; margin: 0 auto; padding: 22px 24px 80px; }
+.gen .tabs { margin-top: 6px; }
+.gen .tabs button.on { border-bottom: 2px solid var(--paper); }
+#gbody.enter > * { animation: rise .42s var(--ease-out) both; }
+.final-prompt { white-space: pre-wrap; font: 12px/1.5 var(--mono); background: #0b0b0a; border: 1px solid var(--line); padding: 10px 12px; max-height: 320px; overflow: auto; }
+.final-prompt:empty { display: none; }
+.upl { margin: 10px 0; }
+.upl .row { gap: 8px; }
+.upl-prev { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.upl-prev img, .upl-prev video { height: 120px; border: 1px solid var(--line); background: #000; }
+.mtable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.mtable th, .mtable td { text-align: left; padding: 10px 8px; border-top: 1px solid var(--line); vertical-align: top; }
+.mtable th { color: var(--muted); font-weight: 600; font-size: 12px; }
+.job .result { display: grid; grid-template-columns: minmax(260px, 420px) 1fr; gap: 16px; margin-top: 10px; }
+.job .result video { width: 100%; background: #000; border: 1px solid var(--line); }
+.job.error { border-color: var(--down); }
+.shot { padding: 12px 14px; }
+button.big { padding: 13px 26px; font-size: 15px; }
+@media (max-width: 860px) { .job .result { grid-template-columns: 1fr; } }
+.board { width: 260px; max-width: 100%; border: 1px solid var(--line); background: #000; margin-bottom: 8px; display: block; }

@@ -210,6 +210,89 @@ The guard blocks:
 
 It warns on anything that looks like a ticker.
 
+## Generate: AI video from text, images and video
+
+**Generate** (top bar, or `/generate.html`) runs open-source video generation models on your own GPU. Nothing is uploaded, and nothing is paid for. Weights download once from Hugging Face; no account is needed for these.
+
+### What it takes, honestly
+
+These models need an **NVIDIA GPU**. Rough guide to what each size of card runs:
+
+| GPU memory | What runs well | Typical result |
+|---|---|---|
+| 8 GB | Wan 2.1 T2V 1.3B, Wan 2.1 VACE 1.3B | 832×480, 5 s at 16 fps, several minutes per clip |
+| 12–16 GB | + Wan 2.2 TI2V 5B, LTX-Video, Wan I2V 480p | 1280×704 at 24 fps (Wan 2.2 5B) |
+| 24 GB+ | + Wan 2.1/2.2 14B and A14B, VACE 14B, FLF2V | 720p; the most realistic open results |
+
+- **Smaller cards:** the engine offloads layers to system RAM automatically, which is slower but works.
+- **No NVIDIA GPU:** the models still run on the CPU, but expect hours per few seconds of video. On CPU, use small sizes and few steps.
+- **Resolution:** 4K is reached by upscaling, not native generation. No open model generates native 4K video today.
+- **Comparison with paid services:** the best open models, Wan 2.2 A14B and Wan 2.1 14B, are among the strongest available, open or closed. They don't win every shot against Kling, Runway or Higgsfield; the gap shows most on long, complex human action. The engine's job is to get the most out of them.
+
+### Models
+
+On the **Models** tab, each model shows its size, VRAM, licence and how it will fit your GPU, with a download button.
+
+| Model | Licence | Best at |
+|---|---|---|
+| Wan 2.2 TI2V 5B | Apache-2.0 | 720p 24 fps text- and image-to-video on 12 GB+ |
+| Wan 2.2 T2V / I2V A14B | Apache-2.0 | Highest-fidelity open video (24 GB+) |
+| Wan 2.1 T2V 1.3B / 14B, I2V 480p / 720p, FLF2V | Apache-2.0 | Text-to-video, photo-to-video, start + end frame |
+| Wan 2.1 VACE 1.3B / 14B | Apache-2.0 | One model for character references, motion transfer, masked edits, extending clips |
+| LTX-Video 0.9.7 distilled | custom (read it) | Very fast, 24 fps, keyframes |
+| SkyReels V2 DF | custom (read it) | Long videos without seams |
+| HunyuanVideo | custom (regional limits) | Human motion |
+| CogVideoX 2B | Apache-2.0 | Runs on 6 GB |
+
+### What you can do
+
+- **Text to video, image to video, start + end frame, restyle a video**: each with a choice of model.
+- **Characters** (Characters tab): give a name, a fixed description and 2–4 reference photos. Consistency comes from two mechanisms:
+  - the description goes into every prompt;
+  - with VACE models, the photos go to the model itself (reference-to-video).
+
+  Characters are saved for reuse in any video.
+- **Motion transfer**: upload a reference video. Pose (ViTPose), depth (Depth Anything V2) or edges are extracted from it, and VACE moves your character the same way.
+- **Precise camera moves from an image**: Depth Anything builds a depth scene from your start image, and the camera path is applied to it with real parallax. Supported moves include dolly zoom, orbit, crane, push and pull, FPV and crash zoom. VACE then renders the move. A full 360° orbit or bullet time needs views the image doesn't contain, so those moves are limited.
+- **Editing**: paint a mask (white = change) and describe what should be there instead, to remove or replace objects or backgrounds.
+- **Extend and long videos**: past a model's clip length (about 5 s), the engine continues from the last frames, using VACE or image-to-video. The overlapping frames are blended, so a 60 s shot is many seamless chunks.
+- **Prompt engine**: your idea becomes the long, literal description these models follow best: camera, lens, lighting, motion and look. It also:
+  - flags contradictions (night vs noon, static vs orbit),
+  - maps "prompt adherence" onto guidance strength,
+  - always shows the exact final prompt and negative prompt. You can switch enhancement off.
+- **Automatic quality pass**:
+  1. Generate several variations (different seeds).
+  2. Score each one with measurable signals:
+     - optical-flow warp error for temporal consistency (morphing scores low),
+     - flicker,
+     - sharpness,
+     - motion,
+     - glitch spikes,
+     - exposure,
+     - optionally, CLIP prompt adherence.
+  3. Keep the best.
+  4. Optionally:
+     - stabilise (vid.stab),
+     - de-flicker,
+     - enhance faces (GFPGAN, if installed),
+     - interpolate to 24/30/60 fps (RIFE if installed, else FFmpeg motion-compensated interpolation),
+     - upscale 2×/4× (Real-ESRGAN if installed, else Lanczos),
+     - add sound,
+     - encode to H.264, H.265, ProRes or WebM.
+- **Sound**: ambience matched to the prompt (rain, wind, city, forest, ocean, fire, crowd) and effects placed on the video's own motion peaks. Everything is synthesised locally, so there's nothing to license.
+- **Film**: a description or script becomes scenes and shots with varied coverage and camera moves. You can also copy a prompt for Claude and paste back its JSON shot list. Then:
+  - storyboard stills (one frame per shot),
+  - edit any shot,
+  - generate,
+  - regenerate a single shot without redoing the rest,
+  - assemble with cuts, crossfades, dip-to-black, whip or flash transitions, slow motion and speed per shot, Kokoro dialogue per character, and your music with optional cuts on the beat.
+- **Queue and history**: jobs run one at a time on the GPU, with live progress and cancel. History survives restarts. Every result keeps its prompt, seed and scores.
+
+### Not built in (yet)
+
+- **Lip sync for photoreal generated faces** uses the talking-avatar step (Settings), not the Generate engine.
+- **Generated audio from video models** (such as MMAudio) isn't enabled, because those weights are currently non-commercial.
+
 ## Optional: talking avatar
 
 This powers the **AI photo avatar** format and animated presenter beats in the screen demo. The **Avatar host** cartoon doesn't need it. Turn it on in **Settings → Talking avatar**. The studio doesn't download or bundle any avatar model. You install one, then give the command line it should run. These placeholders are available: `{image}`, `{audio}`, `{output}` and `{outdir}`.
@@ -260,6 +343,7 @@ You can set these environment variables:
 | `insidir_studio/tts.py` | Kokoro narration, per-sentence synthesis, word alignment from the waveform, fit to 20–35 s |
 | `insidir_studio/timeline.py` | Edit decision list: J-cuts, shot splits on word starts, framings, transitions, 30 fps grid |
 | `insidir_studio/render.py` | FFmpeg: per-shot segments (blurred backdrop, focus crop, supersampled zoom), runs, xfades, ASS captions, voice/music mix, loudness |
+| `insidir_studio/gen/` | Generate engine: model registry (`models.py`), loading and memory strategy (`manager.py`, `hardware.py`), generation, continuation and conditioning (`engine.py`), prompt engine, depth-based camera paths, pose/depth/edge control, quality scoring, post-processing, sound, characters, film planning and assembly, job queue, API |
 | `insidir_studio/ugc.py` | UGC and AI photo avatar: transcription into sentences, jump-cut planning, face/split/bubble/screen layouts, the cut voice track |
 | `insidir_studio/captions.py` | Animated ASS captions, headlines, disclosure labels, end card |
 | `insidir_studio/avatar.py` | GPU detection, licence gate, external avatar command |

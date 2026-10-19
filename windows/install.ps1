@@ -137,6 +137,21 @@ Step "8/8 Faster Whisper caption model"
 & .venv\Scripts\python.exe -m insidir_studio download-models --whisper
 if ($LASTEXITCODE -ne 0) { Write-Host "Whisper model download failed; captions will use estimated timing until it succeeds." -ForegroundColor Yellow }
 
+Step "Generate (AI video models, optional)"
+# PyTorch with CUDA when an NVIDIA GPU is present; the models themselves download from the
+# Models tab on first use (they are large: 19-126 GB each).
+$gpu = $null
+try { $gpu = (& nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>$null | Select-Object -First 1) } catch {}
+if ($gpu) {
+    Write-Host "NVIDIA GPU: $gpu. Installing PyTorch (CUDA 12.4) and the video generation libraries..."
+    & .venv\Scripts\python.exe -m pip install --quiet torch==2.5.1 --index-url https://download.pytorch.org/whl/cu124
+    & .venv\Scripts\python.exe -m pip install --quiet -r requirements-generate.txt
+    if ($LASTEXITCODE -ne 0) { Write-Host "Generate libraries failed to install; the rest of the studio still works." -ForegroundColor Yellow }
+} else {
+    Write-Host "No NVIDIA GPU found: skipping the AI video generation libraries (the rest of the studio works without them)."
+    Write-Host "To install them anyway (CPU, very slow): .venv\Scripts\pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu; .venv\Scripts\pip install -r requirements-generate.txt"
+}
+
 Step "Checking"
 & .venv\Scripts\python.exe -m insidir_studio doctor
 
