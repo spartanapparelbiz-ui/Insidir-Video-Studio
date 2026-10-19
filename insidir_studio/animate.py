@@ -36,7 +36,6 @@ TEMPLATES = {
         "fields": ["headline", "icon", "emphasis", "asset", "focus"],
         "own_captions": True,
         "frame_format": "jpeg",
-        "grain": True,
         "prompt": "Write for retention. Beat 1 is a pattern-interrupt hook of 4-9 words that opens a curiosity gap "
                   "(a question or a surprising true fact); the payoff comes in a later beat. Keep every sentence short "
                   "and spoken, one idea per beat, 1.5-3.5 seconds each. Each beat's headline is 1-4 punchy words shown huge "

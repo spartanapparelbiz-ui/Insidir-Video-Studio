@@ -47,7 +47,7 @@ To use the smaller 88 MB voice model on a slow machine, run `.venv\Scripts\pytho
 
 | Template | What happens on screen | Use it for |
 |---|---|---|
-| **Viral cinematic** (default) | Huge kinetic captions that light up word by word, camera punch-ins, whip transitions with motion blur, cinematic light and film grain, approved figures that count up, and your real Insidir screens in a floating device with a spotlight. A progress bar runs along the top. | Reach on TikTok, Reels and Shorts. |
+| **Viral cinematic** (default) | Huge kinetic captions that light up word by word, camera punch-ins, whip transitions with motion blur, cinematic light, approved figures that count up, and your real Insidir screens in a floating device with a spotlight. A progress bar runs along the top. | Reach on TikTok, Reels and Shorts. |
 | **Dot explainer** | The dot figure explains one idea per beat. A doodle (form, calendar, magnifier…) is drawn on beside it and the headline is written in with an underline. | Any topic. The default. |
 | **Myth vs fact** | Cards whip in. MYTH cards get scribbled out in red while the figure shrugs; FACT cards get a green tick. | Correcting misconceptions. |
 | **Step by step** | Numbered hand-drawn boxes joined by arrows, each ticked off as the next one starts. | How-tos. |

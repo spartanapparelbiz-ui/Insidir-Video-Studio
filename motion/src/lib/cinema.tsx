@@ -1,4 +1,4 @@
-// Production layer for the cinematic templates: lighting, film grain, vignette, a
+// Production layer for the cinematic templates: lighting, vignette, a
 // handheld camera with punch-ins and whip transitions, a progress bar and kinetic captions.
 import {Img, Node, Rect, Txt, blur, type View2D} from '@motion-canvas/2d';
 import {
@@ -75,7 +75,7 @@ export interface Stage {
   overlay: Reference<Node>;
 }
 
-// Background lights + camera group + grain/vignette/progress on top.
+// Background lights + camera group + vignette/progress on top.
 export function stage(view: View2D, data: RenderData): Stage {
   const cam = createRef<Node>();
   const caps = createRef<Node>();
@@ -100,7 +100,6 @@ export function stage(view: View2D, data: RenderData): Stage {
     </Node>,
   );
   spawn(progress().width(W, data.total, linear));
-  // film grain is added by FFmpeg in the final pass (much faster than per-frame canvas noise)
   // slow drifting light and a handheld camera
   spawn(loop(Infinity, () => all(lightA().position([-180, -460], 4, easeInOutSine).to([-300, -560], 4, easeInOutSine))));
   spawn(loop(Infinity, () => all(lightB().position([260, 360], 5, easeInOutSine).to([360, 470], 5, easeInOutSine))));

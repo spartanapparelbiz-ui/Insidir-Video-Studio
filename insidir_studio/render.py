@@ -383,8 +383,8 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
         parts.append(f"[{cur}][r{i}]xfade=transition={tr['type']}:duration={tr['duration']}:offset={offset:.4f}[x{i}]")
         cur = f"x{i}"
         offset += run_durs[i]
-    grain = ",noise=c0s=9:c1s=3:c2s=3:allf=t" if tpl.get("grain") else ""
-    parts.append(f"[{cur}]format=yuv420p{grain},ass=captions.ass:fontsdir=fonts,format=yuv420p[vout]")
+    # (no film grain: per-frame noise made files ~30x larger and platforms recompress it into mush)
+    parts.append(f"[{cur}]format=yuv420p,ass=captions.ass:fontsdir=fonts,format=yuv420p[vout]")
     parts.append(_audio_graph(len(run_files), use_music, total, music_db, has_sfx=use_sfx))
     out_dir = project_dir / "out"
     out_dir.mkdir(exist_ok=True)
