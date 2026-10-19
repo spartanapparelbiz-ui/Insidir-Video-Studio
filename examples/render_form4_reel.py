@@ -46,7 +46,8 @@ def build_project():
         },
     )
     d = project.project_dir(p["id"])
-    p["voice"]["voice"] = "studio_male"\n    p["voice"]["speed"] = 0.93
+    p["voice"]["voice"] = "studio_male"
+    p["voice"]["speed"] = 0.93
     p["style"].update({"quality": "standard", "captions": "auto", "end_card": True,
                        "sfx": True, "music_bed": True, "caption_highlight": "#FFFFFF", "caption_size": 0.80, "caption_words": 3, "logo_overlay": False})
     p["script"] = {
