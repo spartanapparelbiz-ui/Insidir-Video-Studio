@@ -1,5 +1,7 @@
 # Local voices: Kokoro-82M (Apache-2.0) via kokoro-onnx (MIT). Runs on CPU.
 kokoro-onnx>=0.4.9,<1
 numpy>=1.24
+# Accurate caption timing: Faster Whisper (MIT) + CTranslate2, runs on CPU.
+faster-whisper>=1.1,<2
 # Optional, only for the paid Claude API path (off by default):
 #   pip install anthropic

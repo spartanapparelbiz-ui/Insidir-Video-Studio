@@ -7,7 +7,7 @@ import shutil
 import time
 from pathlib import Path
 
-from . import avatar, captions, compliance, config, media, project, timeline, tts
+from . import animate, avatar, captions, compliance, config, media, project, timeline, tts, whisper_align
 
 W, H, FPS = config.WIDTH, config.HEIGHT, config.FPS
 INK = "0x111111"
@@ -166,6 +166,65 @@ def _audio_graph(n_video: int, has_music: bool, total: float, music_db: float) -
 
 # ----------------------------------------------------------------- main entry
 
+def _demo_video(proj, beats, nar, words, assets, settings, end_card_on, project_dir, build, seg_dir, log, progress):
+    """Screen-recording demo: avatar step (optional), edit decision list, shot segments."""
+    # optional avatar clips for presenter beats
+    avatar_videos = {}
+    presenter_beats = [(b, bt) for b, bt in zip(beats, nar.beats) if (b.get("visual") or {}).get("kind") == "presenter"]
+    if presenter_beats and proj.get("presenter", {}).get("use_avatar"):
+        st = avatar.status(settings)
+        if st["usable"]:
+            spans = dict(zip([b["id"] for b in beats], timeline.beat_spans(nar.beats, nar.duration)))
+            pres = next((a for a in proj.get("assets", []) if a.get("role") == "presenter" and a["type"] == "image"), None)
+            if pres:
+                for b, bt in presenter_beats:
+                    s0, s1 = spans[b["id"]]
+                    clip = build / "avatar" / f"{b['id']}.wav"
+                    clip.parent.mkdir(parents=True, exist_ok=True)
+                    media.run(["-i", nar.wav, "-ss", f"{s0:.3f}", "-to", f"{s1:.3f}", str(clip)], log=log)
+                    progress(0.15, f"Animating presenter for {b['id']}")
+                    out = avatar.generate(settings, project_dir / pres["file"], clip, build / "avatar" / f"{b['id']}.mp4", log)
+                    avatar_videos[b["id"]] = str(out)
+                    # an avatar is always AI-generated
+                    pres = {**pres, "ai_generated": True}
+        else:
+            log("avatar skipped: " + " ".join(st["reasons"]))
+
+    # 3. edit decision list
+    if avatar_videos:
+        assets = [{**a, "ai_generated": True} if a.get("role") == "presenter" else a for a in assets]
+    edl = timeline.plan(beats, nar.beats, words, nar.duration, assets,
+                        transitions=proj.get("style", {}).get("transitions") or settings.get("transitions", "cinematic"),
+                        end_card=end_card_on, avatar_videos=avatar_videos)
+    shots, total = edl["shots"], edl["total"]
+    (build / "edl.json").write_text(json.dumps(
+        {"total": total, "shots": [{k: v for k, v in s.items() if k != "asset"} | {"asset": (s["asset"] or {}).get("id")}
+                                   for s in shots]}, indent=2), encoding="utf-8")
+
+    # 4. shots (each extended under the next transition so the cut lands on time)
+    runs = _runs(shots)
+    run_files = []
+    run_trans = []
+    done = 0
+    for ri, run in enumerate(runs):
+        files = []
+        nxt = runs[ri + 1][0] if ri + 1 < len(runs) else None
+        ext = int(round(shots[nxt]["transition_in"]["duration"] * FPS)) if nxt is not None else 0
+        for j, si in enumerate(run):
+            sh = shots[si]
+            frames = sh["frames"] + (ext if j == len(run) - 1 else 0)
+            out = seg_dir / f"s{si:03d}.mp4"
+            progress(0.2 + 0.6 * done / len(shots), f"Shot {si + 1} of {len(shots)}")
+            render_segment(sh, frames, project_dir, out, log)
+            files.append(out)
+            done += 1
+        run_files.append(_concat(files, seg_dir / f"run{ri:02d}.mp4", log))
+        run_trans.append(shots[run[0]].get("transition_in"))
+
+    run_durs = [sum(shots[si]["duration"] for si in run) for run in runs]
+    return avatar_videos, shots, total, edl["end_card_start"], run_files, run_trans, run_durs
+
+
 def render(project_dir: Path, settings: dict | None = None, log=print, progress=None,
            engine_name: str | None = None) -> dict:
     t0 = time.time()
@@ -210,68 +269,59 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
             + ("Shorten the script." if total_est > config.MAX_SECONDS else "Add a sentence or two.")
         )
 
-    # 2. optional avatar clips for presenter beats
-    avatar_videos = {}
-    presenter_beats = [(b, bt) for b, bt in zip(beats, nar.beats) if (b.get("visual") or {}).get("kind") == "presenter"]
-    if presenter_beats and proj.get("presenter", {}).get("use_avatar"):
-        st = avatar.status(settings)
-        if st["usable"]:
-            spans = dict(zip([b["id"] for b in beats], timeline.beat_spans(nar.beats, nar.duration)))
-            pres = next((a for a in proj.get("assets", []) if a.get("role") == "presenter" and a["type"] == "image"), None)
-            if pres:
-                for b, bt in presenter_beats:
-                    s0, s1 = spans[b["id"]]
-                    clip = build / "avatar" / f"{b['id']}.wav"
-                    clip.parent.mkdir(parents=True, exist_ok=True)
-                    media.run(["-i", nar.wav, "-ss", f"{s0:.3f}", "-to", f"{s1:.3f}", str(clip)], log=log)
-                    progress(0.15, f"Animating presenter for {b['id']}")
-                    out = avatar.generate(settings, project_dir / pres["file"], clip, build / "avatar" / f"{b['id']}.mp4", log)
-                    avatar_videos[b["id"]] = str(out)
-                    # an avatar is always AI-generated
-                    pres = {**pres, "ai_generated": True}
+    # 1b. caption timing: Faster Whisper when available (or asked for), else the estimate
+    cap_mode = proj.get("style", {}).get("captions") or "auto"
+    words = nar.words
+    if cap_mode == "whisper" or (cap_mode == "auto" and whisper_align.available()):
+        if not whisper_align.available():
+            raise RenderError("Faster Whisper is not installed. Run install.bat or pick estimated caption timing.")
+        progress(0.12, "Timing captions with Faster Whisper")
+        aligned, matched = whisper_align.align(nar.wav, nar.words, log=log)
+        if matched >= 0.6:
+            words = aligned
         else:
-            log("avatar skipped: " + " ".join(st["reasons"]))
+            log(f"whisper matched only {matched:.0%}; keeping the estimated timing")
 
-    # 3. edit decision list
+    mode = proj.get("mode") or "demo"
     assets = proj.get("assets", [])
-    if avatar_videos:
-        assets = [{**a, "ai_generated": True} if a.get("role") == "presenter" else a for a in assets]
-    edl = timeline.plan(beats, nar.beats, nar.words, nar.duration, assets,
-                        transitions=proj.get("style", {}).get("transitions") or settings.get("transitions", "cinematic"),
-                        end_card=end_card_on, avatar_videos=avatar_videos)
-    shots, total = edl["shots"], edl["total"]
-    (build / "edl.json").write_text(json.dumps(
-        {"total": total, "shots": [{k: v for k, v in s.items() if k != "asset"} | {"asset": (s["asset"] or {}).get("id")}
-                                   for s in shots]}, indent=2), encoding="utf-8")
-
-    # 4. shots (each extended under the next transition so the cut lands on time)
-    runs = _runs(shots)
-    run_files = []
-    run_trans = []
-    done = 0
-    for ri, run in enumerate(runs):
-        files = []
-        nxt = runs[ri + 1][0] if ri + 1 < len(runs) else None
-        ext = int(round(shots[nxt]["transition_in"]["duration"] * FPS)) if nxt is not None else 0
-        for j, si in enumerate(run):
-            sh = shots[si]
-            frames = sh["frames"] + (ext if j == len(run) - 1 else 0)
-            out = seg_dir / f"s{si:03d}.mp4"
-            progress(0.2 + 0.6 * done / len(shots), f"Shot {si + 1} of {len(shots)}")
-            render_segment(sh, frames, project_dir, out, log)
-            files.append(out)
-            done += 1
-        run_files.append(_concat(files, seg_dir / f"run{ri:02d}.mp4", log))
-        run_trans.append(shots[run[0]].get("transition_in"))
+    avatar_videos: dict = {}
+    if mode == "animated":
+        # 2-4 (animated). Motion Canvas draws the picture; FFmpeg adds the rest below.
+        st = animate.status()
+        if not st["ready"]:
+            raise RenderError("Animated templates need Node.js and the Motion Canvas packages. Run install.bat.")
+        spans = timeline.beat_spans(nar.beats, nar.duration)
+        total = round((nar.duration + extra) * FPS) / FPS
+        end_card_start = nar.duration if end_card_on else None
+        job = animate.build_job(proj, beats, spans, nar.beats, words, total, end_card_start, project_dir, build, log)
+        progress(0.2, f"Animating ({animate.TEMPLATES.get(proj.get('template'), {}).get('name', 'template')})")
+        motion_out = build / "motion.mp4"
+        animate.render_job(job, motion_out, log=log, progress=lambda f: progress(0.2 + 0.6 * f, "Animating"))
+        run_files = [motion_out]
+        run_trans = [None]
+        run_durs = [total]
+        by_id = {a["id"]: a for a in assets}
+        shots = []
+        for b, (s0, s1) in zip(beats, spans):
+            a = by_id.get((b.get("visual") or {}).get("asset"))
+            if a and a.get("genuine") and a.get("rights_confirmed"):
+                shots.append({"start": s0, "duration": s1 - s0, "genuine": True, "ai_presenter": False})
+        caption_beats = [{**b, "overlay": ""} for b in beats]  # the template draws its own headlines
+    else:
+        avatar_videos, shots, total, end_card_start, run_files, run_trans, run_durs = _demo_video(
+            proj, beats, nar, words, assets, settings, end_card_on, project_dir, build, seg_dir, log, progress)
+        if avatar_videos:
+            assets = [{**a, "ai_generated": True} if a.get("role") == "presenter" else a for a in assets]
+        caption_beats = beats
 
     # 5. captions
     progress(0.82, "Captions")
     end_card = (facts.get("end_card") or {}) if end_card_on else None
     ass = captions.build_ass(
-        nar.words, shots, beats, nar.beats, total,
+        words, shots, caption_beats, nar.beats, total,
         highlight=proj.get("style", {}).get("caption_highlight") or settings.get("caption_highlight", "#FFD84D"),
         disclaimer=facts.get("disclaimer") or compliance.AUTO_DISCLAIMER,
-        end_card=end_card, end_card_start=edl["end_card_start"],
+        end_card=end_card, end_card_start=end_card_start,
     )
     (build / "captions.ass").write_text(ass, encoding="utf-8")
 
@@ -286,12 +336,12 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
         inputs += ["-stream_loop", "-1", "-i", str(project_dir / music["file"])]
     parts = [f"[{i}:v]settb=AVTB,fps={FPS},format=yuv420p[r{i}]" for i in range(len(run_files))]
     cur = "r0"
-    offset = sum(shots[si]["duration"] for si in runs[0])
+    offset = run_durs[0]
     for i in range(1, len(run_files)):
         tr = run_trans[i]
         parts.append(f"[{cur}][r{i}]xfade=transition={tr['type']}:duration={tr['duration']}:offset={offset:.4f}[x{i}]")
         cur = f"x{i}"
-        offset += sum(shots[si]["duration"] for si in runs[i])
+        offset += run_durs[i]
     parts.append(f"[{cur}]ass=captions.ass:fontsdir=fonts,format=yuv420p[vout]")
     parts.append(_audio_graph(len(run_files), bool(music and proj.get("music", {}).get("enabled", True)),
                               total, float(proj.get("music", {}).get("volume_db", -20))))
@@ -321,6 +371,9 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
         "voice": nar.voice,
         "speed": nar.speed,
         "engine": nar.engine,
+        "mode": mode,
+        "template": proj.get("template") if mode == "animated" else None,
+        "caption_timing": "whisper" if words is not nar.words else "estimated",
         "shots": len(shots),
         "facts_used": script.get("facts_used", []),
         "facts": [f for f in facts.get("facts", []) if f["id"] in (script.get("facts_used") or [])],

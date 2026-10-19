@@ -18,8 +18,8 @@ sys.path.insert(0, str(ROOT))
 TMP = Path(tempfile.mkdtemp(prefix="ivs-test-"))
 os.environ["INSIDIR_STUDIO_HOME"] = str(TMP)
 
-from insidir_studio import (captions, compliance, config, media, project, render,  # noqa: E402
-                            script_writer, timeline, tts)
+from insidir_studio import (animate, captions, compliance, config, media, project, render,  # noqa: E402
+                            script_writer, timeline, tts, whisper_align)
 
 FACTS = compliance.load_facts(config.DEFAULT_FACTS)
 
@@ -65,6 +65,27 @@ class ComplianceTests(unittest.TestCase):
         for v in range(len(script_writer.TEMPLATES)):
             s = script_writer.template_script({"assets": []}, FACTS, v)
             self.assertEqual([i for i in compliance.lint(s, FACTS, []) if i["level"] == "error"], [], v)
+
+
+    def test_myth_must_be_corrected(self):
+        beat = lambda i, text, label: {"id": f"b{i}", "text": text, "visual": {"label": label}}
+        ok = {"beats": [beat(1, "Myth: Form 4s are insider tips.", "MYTH"), beat(2, "False. They're public records.", "FACT")]}
+        errs = [i for i in compliance.lint(ok, FACTS, []) if i["level"] == "error"]
+        self.assertEqual(errs, [])
+        bad = {"beats": [beat(1, "Myth: Form 4s are insider tips.", "MYTH"), beat(2, "Anyway.", "")]}
+        errs = [i for i in compliance.lint(bad, FACTS, []) if i["level"] == "error"]
+        self.assertTrue(any("FACT" in e["message"] for e in errs))
+
+    def test_emphasis_numbers_are_checked(self):
+        s = {"beats": [{"id": "b1", "text": "Fast.", "visual": {"emphasis": "90% faster"}}]}
+        self.assertTrue([i for i in compliance.lint(s, FACTS, []) if i["level"] == "error"])
+
+    def test_animated_drafts_pass(self):
+        for tid in animate.TEMPLATES:
+            s = script_writer.template_script({"mode": "animated", "template": tid, "assets": []}, FACTS)
+            self.assertEqual([i for i in compliance.lint(s, FACTS, []) if i["level"] == "error"], [], tid)
+            words = sum(len(b["text"].split()) for b in s["beats"])
+            self.assertTrue(45 <= words <= 78, (tid, words))
 
 
 class ScriptTests(unittest.TestCase):
@@ -120,6 +141,12 @@ class AlignTests(unittest.TestCase):
             last = b
 
 
+class WhisperMatchTests(unittest.TestCase):
+    def test_norm(self):
+        self.assertEqual(whisper_align._norm("Form,"), "form")
+        self.assertEqual(whisper_align._norm("It's"), "its")
+
+
 @unittest.skipUnless(config.find_tool("ffmpeg"), "FFmpeg not installed")
 class RenderTests(unittest.TestCase):
     def test_full_render(self):
@@ -128,7 +155,7 @@ class RenderTests(unittest.TestCase):
         vid, img = src / "insidir-screen.mp4", src / "insidir-shot.png"
         media.run(["-f", "lavfi", "-i", "testsrc2=s=1280x800:r=30:d=12", "-pix_fmt", "yuv420p", str(vid)])
         media.run(["-f", "lavfi", "-i", "testsrc=s=1600x1000:r=1:d=1", "-frames:v", "1", str(img)])
-        proj = project.new("Test video")
+        proj = project.new("Test video", {"mode": "demo"})
         d = project.project_dir(proj["id"])
         for f in (vid, img):
             tmp = TMP / ("up_" + f.name)
@@ -152,6 +179,20 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(frames, sorted(frames))
         for a, b in zip(edl["shots"], edl["shots"][1:]):
             self.assertEqual(a["frame_end"], b["frame_start"])  # no gaps or overlaps on the grid
+
+    @unittest.skipUnless(animate.status()["ready"], "Node.js / Motion Canvas not installed")
+    def test_animated_render(self):
+        proj = project.new("Animated", {"mode": "animated", "template": "steps"})
+        d = project.project_dir(proj["id"])
+        proj = project.load(d)
+        proj["style"]["captions"] = "estimate"
+        proj["script"] = script_writer.template_script(proj, FACTS)
+        project.save(d, proj)
+        report = render.render(d, log=lambda m: None, engine_name="test-tone")
+        info = media.probe(d / "out" / report["file"])
+        self.assertEqual((info["width"], info["height"]), (1080, 1920))
+        self.assertTrue(config.MIN_SECONDS <= info["duration"] <= config.MAX_SECONDS + 0.1, info["duration"])
+        self.assertEqual(report["mode"], "animated")
 
     def test_guard_blocks_render(self):
         proj = project.new("Blocked")

@@ -10,7 +10,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-from . import avatar, compliance, config, project, render, script_writer, tts
+from . import animate, avatar, compliance, config, project, render, script_writer, tts, whisper_align
 
 
 def cmd_doctor(_args) -> int:
@@ -32,6 +32,18 @@ def cmd_doctor(_args) -> int:
     print(f"Kokoro:  package {'ok' if ks['installed'] else 'MISSING (pip install kokoro-onnx)'}; "
           f"model {ks['model'] or 'MISSING in ' + ks['models_dir']}")
     ok &= ks["ready"]
+    ms = animate.status()
+    print(f"Node:    {ms['node'] or 'MISSING (install.bat installs it)'} {ms['node_version'] or ''}")
+    print(f"Motion:  {'Motion Canvas + Rough.js installed' if ms['motion_installed'] else 'MISSING (cd motion && npm ci)'}")
+    ok &= ms["ready"]
+    if ms["ready"]:
+        b_ok, b_msg = animate.check_browser()
+        print(f"Browser: {'ok ' + b_msg[3:] if b_ok else 'MISSING - ' + b_msg}")
+        ok &= b_ok
+    ws = whisper_align.status()
+    print(f"Whisper: {'Faster Whisper installed' if ws['installed'] else 'not installed (optional; captions use estimated timing)'}"
+          + (f", model {ws['model']} {'downloaded' if ws['downloaded'] else 'downloads on first use'}" if ws["installed"] else ""))
+    print("Manim:   not needed (every template runs in Motion Canvas)")
     st = avatar.status(config.load_settings())
     gpus = ", ".join(f"{g['name']} ({g['vram_gb']} GB)" for g in st["gpus"]) or "none"
     print(f"GPU:     {gpus}")
@@ -61,6 +73,14 @@ def _download(url: str, dest: Path) -> None:
 
 
 def cmd_download_models(args) -> int:
+    if args.whisper:
+        if not whisper_align.available():
+            print("Faster Whisper is not installed; skipping its model.")
+            return 0
+        print(f"Downloading the Faster Whisper '{whisper_align.MODEL}' model (about 140 MB) ...", flush=True)
+        whisper_align.download()
+        print(f"Whisper model is in {whisper_align.model_dir()}")
+        return 0
     d = config.models_dir()
     names = ["voices-v1.0.bin", "kokoro-v1.0.int8.onnx" if args.small else "kokoro-v1.0.onnx"]
     for name in names:
@@ -75,7 +95,10 @@ def cmd_download_models(args) -> int:
 
 def cmd_new(args) -> int:
     """Create a project from files on disk with an offline script (handy for testing)."""
-    proj = project.new(args.name, {"topic": args.topic or ""})
+    brief = {"topic": args.topic or "", "mode": "animated" if args.template else "demo"}
+    if args.template:
+        brief["template"] = args.template
+    proj = project.new(args.name, brief)
     d = project.project_dir(proj["id"])
     for f in args.files:
         src = Path(f)
@@ -123,6 +146,7 @@ def main(argv=None) -> int:
     sub.add_parser("doctor", help="check FFmpeg, Kokoro, GPU")
     dm = sub.add_parser("download-models", help="download the Kokoro voice model")
     dm.add_argument("--small", action="store_true", help="int8 model (88 MB) instead of full (310 MB)")
+    dm.add_argument("--whisper", action="store_true", help="download the Faster Whisper caption model instead")
     n = sub.add_parser("new", help="create a project from files with an offline script")
     n.add_argument("name")
     n.add_argument("files", nargs="*")
@@ -130,6 +154,7 @@ def main(argv=None) -> int:
     n.add_argument("--voice")
     n.add_argument("--variant", type=int, default=0)
     n.add_argument("--genuine", action="store_true", help="mark the files as genuine Insidir recordings")
+    n.add_argument("--template", choices=list(animate.TEMPLATES), help="make an animated video with this template")
     r = sub.add_parser("render", help="render a project folder or id")
     r.add_argument("project")
     r.add_argument("--engine", choices=["kokoro", "test-tone"], default=None)

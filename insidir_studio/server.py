@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import avatar, compliance, config, media, project, render, script_writer, tts
+from . import animate, avatar, compliance, config, media, project, render, script_writer, tts, whisper_align
 
 JOBS: dict[str, dict] = {}
 RENDER_LOCK = threading.Lock()
@@ -51,6 +51,8 @@ def status_payload() -> dict:
         "ffprobe": config.find_tool("ffprobe"),
         "kokoro": tts.kokoro_status(),
         "avatar": avatar.status(settings),
+        "motion": animate.status(),
+        "whisper": whisper_align.status(),
         "limits": {"min": config.MIN_SECONDS, "max": config.MAX_SECONDS, "width": config.WIDTH,
                    "height": config.HEIGHT, "fps": config.FPS},
     }

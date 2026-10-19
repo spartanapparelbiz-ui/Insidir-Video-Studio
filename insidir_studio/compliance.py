@@ -53,7 +53,7 @@ TESTIMONIAL = [
 
 COMMON_ACRONYMS = {
     "SEC", "CEO", "CFO", "COO", "CTO", "AI", "US", "USA", "EDGAR", "OK", "TV", "PDF", "FAQ", "ETF", "IPO",
-    "NYSE", "TTM", "EPS", "XBRL", "API", "UI", "FTC", "I", "A", "TL", "DR", "TLDR",
+    "NYSE", "TTM", "EPS", "XBRL", "API", "UI", "FTC", "I", "A", "TL", "DR", "TLDR", "MYTH", "FACT", "SEC'S",
 }
 
 NUMBER_WORDS = {
@@ -135,7 +135,19 @@ def script_texts(script: dict) -> list[tuple[str, str]]:
             pairs.append((b.get("id", "?"), b["text"]))
         if b.get("overlay"):
             pairs.append((b.get("id", "?") + " overlay", b["overlay"]))
+        vis = b.get("visual") or {}
+        for key in ("emphasis", "label"):
+            if vis.get(key):
+                pairs.append((f"{b.get('id', '?')} {key}", str(vis[key])))
     return pairs
+
+
+def _is_myth(where: str, script: dict) -> bool:
+    bid = where.split(" ")[0]
+    for b in script.get("beats", []):
+        if b.get("id") == bid:
+            return str((b.get("visual") or {}).get("label") or "").upper() == "MYTH"
+    return False
 
 
 def lint(script: dict, facts: dict | None = None, assets: list[dict] | None = None) -> list[dict]:
@@ -153,10 +165,15 @@ def lint(script: dict, facts: dict | None = None, assets: list[dict] | None = No
         return issues
 
     for where, text in script_texts(script):
+        myth = _is_myth(where, script)
         for pat, why in BANNED:
             m = re.search(pat, text, re.I)
             if m:
-                add("error", where, f'"{m.group(0)}": {why}')
+                if myth:
+                    # a myth is shown in order to be crossed out and corrected
+                    add("warning", where, f'"{m.group(0)}" appears in a MYTH beat. It is crossed out on screen; make sure the narration says it is false and the next beat corrects it.')
+                else:
+                    add("error", where, f'"{m.group(0)}": {why}')
         for pat in TESTIMONIAL:
             m = re.search(pat, text, re.I)
             if m:
@@ -167,6 +184,12 @@ def lint(script: dict, facts: dict | None = None, assets: list[dict] | None = No
                 add("error", where, f'"{num}" is not an approved figure. Add it to Facts with a source, or remove it.')
         for t in find_tickers(text):
             add("warning", where, f'"{t}" looks like a ticker or company. Only name it if your footage shows its real filing, and never as a pick.')
+
+    for k, b in enumerate(beats):
+        if str((b.get("visual") or {}).get("label") or "").upper() == "MYTH":
+            nxt = beats[k + 1] if k + 1 < len(beats) else {}
+            if str((nxt.get("visual") or {}).get("label") or "").upper() != "FACT":
+                add("error", b.get("id", "?"), "A MYTH beat must be followed straight away by a FACT beat that corrects it.")
 
     for fid in script.get("facts_used", []) or []:
         if fid not in known_fact_ids:

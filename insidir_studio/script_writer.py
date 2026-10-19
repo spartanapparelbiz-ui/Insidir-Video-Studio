@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import re
 
-from . import compliance
+from . import animate, compliance
 
 SCHEMA_EXAMPLE = {
     "title": "How to read an insider trade in 30 seconds",
@@ -78,13 +78,42 @@ RULES (a script that breaks any of these is rejected automatically):
 7. Do not write a disclaimer; the video adds "Research tool. Not investment advice." itself.
 8. Sound like a real person talking to a friend: short sentences, contractions, one idea per beat. No hashtags, emojis or stage directions inside "text".
 
-STRUCTURE
+{structure_for(proj)}
+"""
+
+
+def structure_for(proj: dict) -> str:
+    if (proj.get("mode") or "demo") != "animated":
+        return f"""STRUCTURE
 - 5 to 8 beats. Beat 1 is the hook (under 12 words). The last beat is the call to action.
 - Each beat: "text" (spoken words), "visual" with "kind" one of screen | image | presenter | title, an optional "asset" id from the footage list, a short "shot" description, and an optional "overlay" headline of 2-5 words shown on screen (use for 2-4 beats, not all).
 
 Reply with ONLY a JSON object in this shape, no prose before or after:
-{json.dumps(SCHEMA_EXAMPLE, indent=2)}
-"""
+{json.dumps(SCHEMA_EXAMPLE, indent=2)}"""
+    tid = proj.get("template") or "dot-explainer"
+    t = animate.TEMPLATES.get(tid, animate.TEMPLATES["dot-explainer"])
+    example = {
+        "title": "How to read an insider trade",
+        "facts_used": ["form4_deadline"],
+        "beats": [
+            {"id": "b1", "text": "Hook sentence.", "overlay": "Short headline",
+             "visual": {"icon": "eye", "pose": "wave", "label": "", "emphasis": "", "asset": None, "shot": ""}},
+            {"id": "b2", "text": "...", "overlay": "...",
+             "visual": {"icon": "calendar", "pose": "point", "label": "", "emphasis": "2 business days", "asset": None, "shot": ""}},
+        ],
+    }
+    return f"""ANIMATION TEMPLATE: {t['name']} ({tid})
+{t['description']} The narrator is the Insidir dot figure, a cartoon made of the dots in Insidir's "i" logo, drawn in a hand-drawn chalk style.
+{t['prompt']}
+
+STRUCTURE
+- 5 to 7 beats. Beat 1 is the hook (under 12 words). The last beat is the call to action.
+- Every beat has "text" (spoken words) and "overlay": a 2-5 word headline drawn on screen.
+- "visual" fields: "icon" one of {', '.join(animate.ICONS)}; "pose" for the dot figure, one of {', '.join(animate.POSES)}; "label" ({'MYTH or FACT' if tid == 'myth-fact' else 'leave empty'}); "emphasis" (an approved figure only, or empty); "asset" (a footage id, or null); "shot" (what to circle or show).
+- On-screen words follow the same rules as the narration.
+
+Reply with ONLY a JSON object in this shape, no prose before or after:
+{json.dumps(example, indent=2)}"""
 
 
 def _extract_json(text: str) -> dict:
@@ -134,7 +163,11 @@ def normalize(script: dict, assets: list[dict] | None = None) -> dict:
             "text": text,
             "visual": {"kind": kind, "asset": asset, "shot": str(vis.get("shot") or "")[:200],
                        "start": vis.get("start"), "focus": vis.get("focus") or [0.5, 0.5],
-                       "zoom": vis.get("zoom") or 1.0},
+                       "zoom": vis.get("zoom") or 1.0,
+                       "icon": vis.get("icon") if vis.get("icon") in animate.ICONS else "",
+                       "pose": vis.get("pose") if vis.get("pose") in animate.POSES else "",
+                       "label": str(vis.get("label") or "").strip().upper()[:12],
+                       "emphasis": str(vis.get("emphasis") or "").strip()[:28]},
             "overlay": str(b.get("overlay") or "")[:40],
         })
     if not beats:
@@ -218,7 +251,92 @@ TEMPLATES = [
 ]
 
 
+# Offline drafts for the animated templates: (text, headline, icon, pose, label, emphasis, use_asset)
+ANIMATED_DRAFTS = {
+    "dot-explainer": {
+        "title": "Insiders file too",
+        "facts_used": ["form4_deadline", "form4_public", "purchases_apart", "links_to_filing"],
+        "beats": [
+            ("Ever wonder what a company's own executives do with its stock?", "Insiders file too", "eye", "wave", "", "", False),
+            ("When insiders trade their shares, they report it on a Form 4, usually within two business days.", "Form 4", "form", "point", "", "2 business days", False),
+            ("Those filings are public. Anyone can read them on EDGAR.", "Public records", "building", "explain", "", "", False),
+            ("Insidir puts them in one place, buys apart from awards.", "One place", "list", "point", "", "", False),
+            ("Every line links to the original filing.", "Check the source", "link", "think", "", "", False),
+            ("Do your own research at insidir dot com.", "Do your own research", "magnifier", "cheer", "", "", False),
+        ],
+    },
+    "myth-fact": {
+        "title": "Insider filing myths",
+        "facts_used": ["form4_public", "form4_deadline", "purchases_apart"],
+        "beats": [
+            ("Let's clear up what insider filings really are.", "Insider filings", "question", "wave", "", "", False),
+            ("Myth: insider filings are secret tips for a lucky few.", "Insider filings are secret", "lock", "think", "MYTH", "", False),
+            ("False. Form 4s are public SEC records, and anyone can read them.", "They're public records", "building", "pointleft", "FACT", "", False),
+            ("Myth: you only hear about a trade months later.", "You hear months later", "calendar", "think", "MYTH", "", False),
+            ("Not true. Most trades must be reported within two business days.", "2 business days", "clock", "pointleft", "FACT", "", False),
+            ("Insidir lays those filings out in plain words. Read them at insidir dot com.", "Read the filings", "magnifier", "cheer", "", "", False),
+        ],
+    },
+    "steps": {
+        "title": "Read an insider trade",
+        "facts_used": ["company_reports", "purchases_apart", "personnel_files", "links_to_filing"],
+        "beats": [
+            ("Here's how to read an insider trade, step by step.", "Read an insider trade", "", "wave", "", "", False),
+            ("First, open a company and go to insider activity.", "Open insider activity", "", "pointleft", "", "", False),
+            ("Next, look for open-market buys and sales, not awards or option exercises.", "Find open-market trades", "", "pointleft", "", "", False),
+            ("Then check who filed it. Every reporting person has their own file.", "Check who filed", "", "pointleft", "", "", False),
+            ("Finally, open the original SEC filing and read it yourself.", "Open the filing", "", "pointleft", "", "", False),
+            ("That's it. Try it at insidir dot com.", "Try Insidir", "", "cheer", "", "", False),
+        ],
+    },
+    "big-number": {
+        "title": "How fast insider trades show up",
+        "facts_used": ["form4_deadline", "import_cadence", "links_to_filing", "trial"],
+        "beats": [
+            ("How fast do you find out when an insider trades?", "How fast?", "clock", "think", "", "", False),
+            ("Insiders usually have two business days to report a trade on a Form 4.", "The deadline", "calendar", "pointup", "", "2 business days", False),
+            ("Insidir imports new filings from EDGAR every 15 minutes.", "New filings", "cabinet", "pointup", "", "15 minutes", False),
+            ("Each one is written in plain words, with a link to the source.", "Plain words", "link", "explain", "", "", False),
+            ("Try it for 3 days for $1, then it's $39 a month. Cancel any time.", "Try it", "tag", "cheer", "", "$1 for 3 days", False),
+        ],
+    },
+    "screen-sketch": {
+        "title": "Insidir, up close",
+        "facts_used": ["purchases_apart", "personnel_files", "links_to_filing"],
+        "beats": [
+            ("Here's what insider trading data looks like in Insidir.", "Insider activity", "laptop", "wave", "", "", True),
+            ("Each row is one line from a Form 4: who traded, and when.", "One row, one filing", "form", "pointleft", "", "", True),
+            ("Open-market buys and sales are kept apart from awards and option exercises.", "Buys vs. awards", "list", "pointleft", "", "", True),
+            ("Tap a person and you get their file, built from public filings.", "Their file", "people", "pointleft", "", "", True),
+            ("See it for yourself at insidir dot com.", "insidir.com", "laptop", "cheer", "", "", False),
+        ],
+    },
+}
+
+
+def animated_draft(proj: dict, facts: dict) -> dict:
+    tid = proj.get("template") or "dot-explainer"
+    d = ANIMATED_DRAFTS.get(tid, ANIMATED_DRAFTS["dot-explainer"])
+    known = {f["id"] for f in facts.get("facts", [])}
+    footage = sorted([a for a in proj.get("assets", []) if a.get("role") in ("screen", "image") and a.get("rights_confirmed")],
+                     key=lambda a: (not a.get("genuine"), a["type"] != "image"))
+    beats = []
+    k = 0
+    for text, headline, icon, pose, label, emph, use_asset in d["beats"]:
+        asset = None
+        if use_asset and footage:
+            asset = footage[k % len(footage)]["id"]
+            k += 1
+        beats.append({"text": text, "overlay": headline,
+                      "visual": {"kind": "screen", "asset": asset, "icon": icon, "pose": pose,
+                                 "label": label, "emphasis": emph}})
+    return normalize({"title": d["title"], "facts_used": [f for f in d["facts_used"] if f in known], "beats": beats},
+                     proj.get("assets", []))
+
+
 def template_script(proj: dict, facts: dict, variant: int = 0) -> dict:
+    if (proj.get("mode") or "demo") == "animated":
+        return animated_draft(proj, facts)
     known = {f["id"] for f in facts.get("facts", [])}
     usable = [t for t in TEMPLATES if set(t["facts_used"]) <= known] or TEMPLATES[:1]
     t = usable[variant % len(usable)]

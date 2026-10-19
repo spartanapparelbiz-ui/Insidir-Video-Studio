@@ -10,6 +10,14 @@ All required components are free and allow commercial use. Check the current ter
 | espeak-ng (through espeakng-loader / phonemizer) | Phonemes for Kokoro | GPL-3.0 | Used as a separate library for pronunciation; it doesn't affect your videos |
 | NumPy | Audio arrays | BSD-3-Clause | |
 | FFmpeg (gyan.dev essentials build) | Editing, encoding, captions (libass) | GPL-3.0 | Run as a separate program. Rendered videos aren't covered by the GPL |
+| Motion Canvas (`@motion-canvas/*`) | Animation engine for the templates | MIT | |
+| Rough.js | Hand-drawn strokes and doodles | MIT | |
+| Vite | Serves the templates to the headless browser | MIT | |
+| Playwright (`playwright-core`) | Drives Edge / Chromium headlessly | Apache-2.0 | Chromium itself is BSD-licensed |
+| Node.js | Runs Motion Canvas | MIT | Portable copy in `tools\node` |
+| Faster Whisper + CTranslate2 | Caption timing | MIT | |
+| Whisper `base.en` model (Systran conversion of OpenAI Whisper) | Caption timing | MIT | Downloaded from Hugging Face on first setup |
+| Patrick Hand typeface (`@fontsource/patrick-hand`) | Hand-written labels in templates | SIL OFL 1.1 | |
 | Inter typeface (`insidir_studio/fonts`) | Captions and UI | SIL OFL 1.1 | Licence in `insidir_studio/fonts/OFL.txt` |
 | Anthropic Python SDK (optional) | Claude API path | MIT | Only if you install it; API use is billed by Anthropic |
 | Claude (claude.ai) | Script writing by copy and paste | Anthropic terms | Review Anthropic's terms for commercial use of outputs |

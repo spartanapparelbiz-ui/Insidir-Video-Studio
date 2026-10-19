@@ -5,3 +5,7 @@ tools/
 models/
 *.onnx
 voices-*.bin
+motion/node_modules/
+motion/public/*.json
+motion/src/**/*.meta
+motion/output/

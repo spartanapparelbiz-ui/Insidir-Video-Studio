@@ -1,31 +1,71 @@
 # Insidir Video Studio
 
-A local, free app for Windows 11 that makes 20–35 second vertical (1080×1920) UGC-style videos for Insidir:
+A local, free app for Windows 11 that makes 20–35 second vertical (1080×1920) videos for Insidir, in one browser interface:
 
-- **Claude writes the script.** It's free with copy and paste: the studio builds the full prompt (your brief, your footage and the approved facts). You paste it into claude.ai and paste the reply back. An Anthropic API key is optional and off by default.
-- **Kokoro speaks it.** Kokoro-82M (Apache-2.0) runs on your CPU, with 15 natural English voices. Captions are timed from the audio.
-- **FFmpeg edits it.** Your real Insidir screen recordings and screenshots are cut on the spoken words: J-cuts, wide → tight → tighter framing, slow push-ins, quick transitions only where the subject changes. Captions pop in and highlight each word as it's spoken. Headlines, an end card, loudness at −14 LUFS, and optional licensed music that ducks under the voice.
-- **It stays honest.** A claim guard blocks the render if the script states a number that isn't an approved fact, promises returns, tells anyone to buy or sell, implies nonpublic information, or uses a first-person testimonial. Every video is labelled "AI voice". An AI-generated presenter is labelled "AI-generated presenter", genuine product footage is labelled "Real Insidir screen recording", and the last beat carries "Research tool. Not investment advice."
-- **The talking avatar is optional.** It is used only if you install a local model yourself, an NVIDIA GPU with enough memory is present, the model is not known to forbid commercial use, and you confirm you've checked its licence.
+- **Claude writes the script.** It's free with copy and paste: the studio builds the full prompt (your brief, your template, your footage and the approved facts). You paste it into claude.ai and paste the reply back. An Anthropic API key is optional and off by default.
+- **Motion Canvas animates it.** Five reusable templates are drawn in a hand-drawn chalkboard style with **Rough.js**. The narrator is the **Insidir dot figure**: the dotted "i" of the Insidir favicon, read as a little person that waves, points, thinks, shrugs and cheers. Frames render headlessly in Microsoft Edge (built into Windows 11) and stream straight into FFmpeg.
+- **Kokoro speaks it.** Kokoro-82M (Apache-2.0) runs on your CPU, with 15 natural English voices.
+- **Faster Whisper times the captions.** It listens to the finished narration and lines every caption word up with the voice, on your computer. It matched 94–96% of words in testing; if it's missing, timing is estimated from the audio.
+- **FFmpeg edits and exports it.** It burns in captions that pop and highlight each word as it's spoken, the AI labels and the end card, mixes the voice (and optional licensed music) to −14 LUFS, and exports H.264 MP4.
+- **The screen-recording demo style is still here.** It makes cinematic cuts of your real Insidir recordings: J-cuts, wide → tight → tighter framing, slow push-ins.
+- **It stays honest.** A claim guard blocks the render if the script or anything drawn on screen:
+  - states a number that isn't an approved fact,
+  - promises returns or tells anyone to buy or sell,
+  - implies nonpublic information,
+  - uses a first-person testimonial.
 
-There are no paid APIs, subscriptions, credit cards or watermarks. Nothing leaves your computer except the model download on first setup and anything you choose to paste into Claude.
+  A MYTH card must be followed straight away by the FACT card that corrects it. Every video is labelled "AI voice", genuine footage is labelled "Real Insidir screen recording", and the last beat carries "Research tool. Not investment advice."
 
-## Install (Windows 10/11)
+There are no paid APIs, subscriptions, credits, credit cards or watermarks. Nothing leaves your computer except the free downloads on first setup and anything you choose to paste into Claude. **Manim isn't used:** every template runs in Motion Canvas, so it was never needed.
 
-1. Download this repository (Code → Download ZIP) and unzip it, for example to `C:\InsidirVideoStudio`.
-2. Double-click **`install.bat`**. It:
-   - finds Python 3.10–3.13, or installs Python 3.12 with `winget`,
-   - creates `.venv` and installs `kokoro-onnx`,
-   - downloads FFmpeg (the gyan.dev essentials build, which includes libass) to `tools\ffmpeg` if FFmpeg isn't already installed,
-   - downloads the Kokoro model (310 MB) and voices (28 MB) to `%USERPROFILE%\InsidirStudio\models`,
-   - runs a self-check and adds a desktop shortcut.
-3. Double-click **`start.bat`**. The studio opens in your browser at `http://127.0.0.1:7860`. Keep the window open while you work.
+## Install and launch on Windows 11
+
+1. On GitHub, open **spartanapparelbiz-ui/Insidir-Video-Studio**, switch to the branch **`claude/elegant-goodall-5totah`**, then click **Code → Download ZIP**. You can also clone it:
+   `git clone -b claude/elegant-goodall-5totah https://github.com/spartanapparelbiz-ui/Insidir-Video-Studio.git C:\InsidirVideoStudio`
+2. If you downloaded the ZIP, right-click it → **Extract All…** → `C:\InsidirVideoStudio`. Use a short path with no special characters.
+3. Open the folder and double-click **`install.bat`**. If Windows SmartScreen asks, click **More info → Run anyway**. The first run takes 5–15 minutes and downloads about 1 GB. It installs into the folder (no admin rights needed):
+   1. Python 3.12 (with `winget`) if you don't have Python 3.10–3.13,
+   2. Python packages in `.venv`: **kokoro-onnx** and **faster-whisper**,
+   3. **FFmpeg** in `tools\ffmpeg` (the gyan.dev build, with libass and libvpx),
+   4. **Node.js 22 LTS** in `tools\node` (portable; checksum verified),
+   5. **Motion Canvas 3.17, Rough.js 4.6 and Vite** in `motion\node_modules` (exact versions from the lockfile),
+   6. a render browser: Microsoft Edge, or Playwright's Chromium if Edge can't be used,
+   7. the Kokoro voice model, to `%USERPROFILE%\InsidirStudio\models`,
+   8. the Faster Whisper `base.en` caption model (about 140 MB).
+
+   It ends with a self-check, where every line should say ok or ready, and adds a desktop shortcut.
+4. Double-click **`start.bat`** (or the **Insidir Video Studio** desktop shortcut). A console window opens and your browser goes to **http://127.0.0.1:7860**. Keep the console window open while you work; close it (or press Ctrl+C) to stop the studio.
+5. To check the setup at any time, open a terminal in the folder and run `.venv\Scripts\python -m insidir_studio doctor`.
+
+To update later, download the new ZIP (or `git pull`) into the same folder and run `install.bat` again. Your projects live in `%USERPROFILE%\InsidirStudio` and are kept.
 
 To use the smaller 88 MB voice model on a slow machine, run `.venv\Scripts\python -m insidir_studio download-models --small`.
 
+## The five animated templates
+
+| Template | What happens on screen | Use it for |
+|---|---|---|
+| **Dot explainer** | The dot figure explains one idea per beat. A doodle (form, calendar, magnifier…) is drawn on beside it and the headline is written in with an underline. | Any topic. The default. |
+| **Myth vs fact** | Cards whip in. MYTH cards get scribbled out in red while the figure shrugs; FACT cards get a green tick. | Correcting misconceptions. |
+| **Step by step** | Numbered hand-drawn boxes joined by arrows, each ticked off as the next one starts. | How-tos. |
+| **Big number** | An approved figure ("2 business days", "15 minutes") written huge and circled. | Facts with a number. |
+| **Screen sketch** | A real Insidir screenshot or recording in a hand-drawn window, slowly zooming. The spot you click is circled, and the figure points at it with an arrow. | Showing the real product. |
+
+Every template:
+
+- keeps the top-left corner clear for the AI labels and the lower third for captions,
+- times every beat to the narration to the frame,
+- makes the figure's head nod on each spoken word.
+
+There are 23 doodle icons and 11 poses. Pick them per beat on the Script tab, or let Claude choose them.
+
+The templates live in `motion/src/templates/*.tsx`; the drawing helpers are in `motion/src/lib/`. Edit a template, then render a project to see the change.
+
+The style is a dark, chalk-on-ink hand-drawn explainer look. The palette is Insidir's paper and ink plus a yellow accent, set in `insidir_studio/animate.py` (`PALETTE`).
+
 ## Making a video
 
-1. **Brief.** Set the topic, angle, audience, hook style, target length and call to action.
+1. **Brief.** Pick a **video style**: one of the five animated templates or the screen-recording demo. Then set the topic, angle, audience, hook style, target length and call to action.
 2. **Footage.** Drop in screen recordings of the real product (Win+Alt+R with Xbox Game Bar, or OBS) and screenshots. On each file, tick:
    - *I have the rights to use it commercially.* This is required for every file you use.
    - *Genuine recording of the real Insidir product*, for demo footage.
@@ -131,6 +171,12 @@ You can set these environment variables:
 | `insidir_studio/render.py` | FFmpeg: per-shot segments (blurred backdrop, focus crop, supersampled zoom), runs, xfades, ASS captions, voice/music mix, loudness |
 | `insidir_studio/captions.py` | Animated ASS captions, headlines, disclosure labels, end card |
 | `insidir_studio/avatar.py` | GPU detection, licence gate, external avatar command |
+| `insidir_studio/animate.py` | Template catalogue, Motion Canvas job folder (data.json + media), Node bridge |
+| `insidir_studio/whisper_align.py` | Faster Whisper word timestamps matched back to the script |
+| `motion/scripts/render.mjs` | Headless render: Vite + Motion Canvas in Edge/Chromium, frames piped into FFmpeg |
+| `motion/src/lib/figure.tsx` | The Insidir dot figure and its poses |
+| `motion/src/lib/rough.tsx`, `icons.ts` | Rough.js strokes as Motion Canvas paths that draw on; doodle icons |
+| `motion/src/templates/` | The five templates |
 | `insidir_studio/server.py`, `web/` | Local web app (127.0.0.1 only) |
 
 The app is bound to `127.0.0.1`, checks the `Host` header against DNS rebinding, and refuses cross-origin writes.

@@ -75,6 +75,8 @@ function renderPills() {
   pill(st.kokoro.ready ? "ok" : "bad", "Kokoro voice", st.kokoro.ready ? st.kokoro.model : "Model missing: run install.bat");
   const g = st.avatar.gpus[0];
   pill(g ? "ok" : "off", g ? `GPU ${g.vram_gb} GB` : "No GPU (not needed)", g ? g.name : "Avatars are optional");
+  pill(st.motion.ready ? "ok" : "bad", "Motion Canvas", st.motion.ready ? `Node ${st.motion.node_version}` : "Node.js or motion packages missing: run install.bat");
+  pill(st.whisper.installed ? "ok" : "off", st.whisper.installed ? "Faster Whisper" : "Whisper off", st.whisper.installed ? `Caption timing model ${st.whisper.model}` : "Optional: captions use estimated timing");
   pill(st.avatar.usable ? "ok" : "off", st.avatar.usable ? "Avatar on" : "Avatar off", st.avatar.reasons.join(" "));
 }
 
@@ -163,6 +165,7 @@ function tabBrief(el) {
   const secs = h("b", {}, b.target_seconds + "s");
   const range = bind("target_seconds", h("input", { type: "range", min: 21, max: 33, step: 1, value: b.target_seconds }));
   range.addEventListener("input", () => (secs.textContent = range.value + "s"));
+  el.append(stylePicker());
   el.append(h("div", { class: "panel" },
     h("h2", {}, "What is this video about?"),
     field("Video name", (() => { const i = h("input", { type: "text", value: P().name }); i.oninput = () => { P().name = i.value; save(); }; return i; })()),
@@ -177,6 +180,27 @@ function tabBrief(el) {
       h("label", { class: "field" }, h("span", {}, "Target length "), h("div", { class: "row" }, range, secs))),
     h("p", { class: "hint" }, "Videos must land between 20 and 35 seconds. The studio adjusts the speaking rate a little to fit, and refuses to render outside that range."),
     h("button", { class: "primary", onclick: () => { S.tab = "footage"; renderProject(); } }, "Next: footage")));
+}
+
+function stylePicker() {
+  const p = P(), m = S.status.motion;
+  const choose = (mode, template) => {
+    const changed = p.mode !== mode || (mode === "animated" && p.template !== template);
+    p.mode = mode; if (template) p.template = template;
+    save(); renderProject(); lintSoon(0);
+    if (changed && p.script.beats.length) toast("Style changed. Rewrite or redraft the script to use its fields.");
+  };
+  const card = (on, img, title, text, onclick) => h("button", { class: "tcard" + (on ? " on" : ""), onclick },
+    img ? h("img", { src: img, alt: "" }) : h("div", { class: "tdemo" }, "▶"),
+    h("b", {}, title), h("span", {}, text));
+  return h("div", { class: "panel" },
+    h("h2", {}, "Video style"),
+    h("p", { class: "hint" }, "Animated templates are drawn with Motion Canvas and Rough.js, narrated by the Insidir dot figure. The demo style cuts your real screen recordings."),
+    m.ready ? null : h("div", { class: "notice" }, "Animated templates need Node.js and the Motion Canvas packages. Run install.bat."),
+    h("div", { class: "tgrid" },
+      Object.entries(m.templates).map(([id, t]) =>
+        card(p.mode === "animated" && p.template === id, `/templates/${id}.jpg`, t.name, t.description, () => choose("animated", id))),
+      card(p.mode !== "animated", null, "Screen-recording demo", "Cinematic cuts of your real Insidir recordings and screenshots.", () => choose("demo"))));
 }
 
 // ------------------------------------------------------------ 2 footage
@@ -291,8 +315,8 @@ function tabScript(el) {
       } }, "Ask Claude API") : null)),
     h("div", { class: "panel" },
       h("h3", {}, "Or start from an offline draft"),
-      h("p", { class: "hint" }, "Written only from the approved facts. Edit it to make it yours."),
-      h("div", { class: "row" }, variant, h("button", { onclick: async () => {
+      h("p", { class: "hint" }, P().mode === "animated" ? `A ${S.status.motion.templates[P().template]?.name || ""} draft written only from the approved facts.` : "Written only from the approved facts. Edit it to make it yours."),
+      h("div", { class: "row" }, P().mode === "animated" ? null : variant, h("button", { onclick: async () => {
         if (P().script.beats.length && !confirm("Replace the current script?")) return;
         useScript(await api("POST", `projects/${P().id}/script/template`, { variant: Number(variant.value) }));
       } }, "Use draft"))),
@@ -326,6 +350,7 @@ function renderBeats() {
   const wrap = document.getElementById("beats");
   if (!wrap) return;
   wrap.innerHTML = "";
+  if (P().mode === "animated") return renderAnimatedBeats(wrap);
   const sc = P().script;
   const assets = P().assets.filter(a => a.role !== "music");
   sc.beats.forEach((b, i) => {
@@ -375,6 +400,62 @@ function renderBeats() {
           h("button", { class: "small danger", onclick: () => { sc.beats.splice(i, 1); renumber(); save(); renderBeats(); lintSoon(); }, title: "Delete beat" }, "✕")))));
   });
   if (!sc.beats.length) wrap.append(h("p", { class: "hint" }, "No beats yet. Paste a reply from Claude or use an offline draft."));
+  updateStats();
+}
+
+function renderAnimatedBeats(wrap) {
+  const sc = P().script, m = S.status.motion, tid = P().template;
+  const fields = (m.templates[tid] || {}).fields || [];
+  const footage = P().assets.filter(a => a.role === "screen" || a.role === "image");
+  const sel = (vals, cur, onchange, blank) => h("select", { onchange }, blank ? h("option", { value: "" }, blank) : null,
+    vals.map(v => h("option", { value: v, selected: cur === v }, v)));
+  sc.beats.forEach((b, i) => {
+    b.visual = b.visual || {};
+    const v = b.visual;
+    const set = (k, val, redraw) => { v[k] = val; save(); lintSoon(); if (redraw) renderBeats(); };
+    const text = h("textarea", { value: b.text, rows: 2 });
+    text.oninput = () => { b.text = text.value; save(); lintSoon(); updateStats(); };
+    const headline = h("input", { type: "text", value: b.overlay || "", placeholder: "Headline drawn on screen (2-5 words)" });
+    headline.oninput = () => { b.overlay = headline.value; save(); lintSoon(); };
+    const emph = h("input", { type: "text", value: v.emphasis || "", placeholder: "Big figure (approved facts only)" });
+    emph.oninput = () => set("emphasis", emph.value);
+    const opts = [
+      fields.includes("icon") ? field("Doodle", sel(m.icons, v.icon, e => set("icon", e.target.value), "auto")) : null,
+      field("Dot figure pose", sel(m.poses, v.pose, e => set("pose", e.target.value), "auto")),
+      fields.includes("label") ? field("Card", sel(["MYTH", "FACT"], (v.label || "").toUpperCase(), e => set("label", e.target.value), "no label")) : null,
+      fields.includes("emphasis") ? field("Emphasis", emph) : null,
+      fields.includes("asset") ? field("Real footage", h("select", { onchange: e => set("asset", e.target.value || null, true) },
+        h("option", { value: "" }, "none (draw a doodle)"), footage.map(a => h("option", { value: a.id, selected: v.asset === a.id }, a.label)))) : null,
+    ].filter(Boolean);
+    const chosen = footage.find(a => a.id === v.asset);
+    let focus = null;
+    if (chosen && fields.includes("focus")) {
+      focus = h("div", { class: "focus", title: "Click what the circle should go around" });
+      focus.style.backgroundImage = `url(/api/projects/${P().id}/thumb/${chosen.id}?t=${chosen.type === "video" ? 0.5 : 0})`;
+      const f = v.focus || [0.5, 0.5];
+      focus.append(h("div", { class: "dot", style: { left: f[0] * 100 + "%", top: f[1] * 100 + "%" } }));
+      focus.onclick = e => {
+        const r = focus.getBoundingClientRect();
+        const ar = chosen.width / chosen.height, br = r.width / r.height;
+        let w = r.width, hh = r.height, ox = 0, oy = 0;
+        if (ar > br) { hh = r.width / ar; oy = (r.height - hh) / 2; } else { w = r.height * ar; ox = (r.width - w) / 2; }
+        set("focus", [Math.round(Math.min(1, Math.max(0, (e.clientX - r.left - ox) / w)) * 100) / 100,
+          Math.round(Math.min(1, Math.max(0, (e.clientY - r.top - oy) / hh)) * 100) / 100], true);
+      };
+    }
+    const move = (d) => { const j = i + d; if (j < 0 || j >= sc.beats.length) return; [sc.beats[i], sc.beats[j]] = [sc.beats[j], sc.beats[i]]; renumber(); save(); renderBeats(); lintSoon(); };
+    wrap.append(h("div", { class: "beat" },
+      h("div", { class: "num" }, i === 0 ? "HOOK" : i + 1),
+      h("div", {}, text, h("div", { style: { height: "8px" } }), headline,
+        h("div", { class: "aopts" }, opts),
+        v.shot ? h("div", { class: "shot" }, "Shot idea: " + v.shot) : null),
+      h("div", { class: "side-tools" }, focus,
+        h("div", { class: "btns" },
+          h("button", { class: "small", onclick: () => move(-1), title: "Move up" }, "↑"),
+          h("button", { class: "small", onclick: () => move(1), title: "Move down" }, "↓"),
+          h("button", { class: "small danger", onclick: () => { sc.beats.splice(i, 1); renumber(); save(); renderBeats(); lintSoon(); }, title: "Delete beat" }, "✕")))));
+  });
+  if (!sc.beats.length) wrap.append(h("p", { class: "hint" }, "No beats yet. Paste a reply from Claude or use the offline draft."));
   updateStats();
 }
 
@@ -430,7 +511,13 @@ function tabLook(el) {
       h("div", { class: "grid2" }, field("Kokoro voice", voice), h("label", { class: "field" }, h("span", {}, "Speaking rate"), h("div", { class: "row" }, speed, speedLabel))),
       field("Preview line", sample), play, audio),
     h("div", { class: "panel" }, h("h2", {}, "Look"),
-      h("div", { class: "grid2" }, field("Caption highlight", color, "The word being spoken lights up in this colour."), field("Cuts", trans)),
+      h("div", { class: "grid2" }, field("Caption highlight", color, "The word being spoken lights up in this colour."),
+        p.mode === "animated" ? field("Template", h("div", { class: "hint" }, (S.status.motion.templates[p.template] || {}).name || p.template, " (change it on the Brief tab)")) : field("Cuts", trans)),
+      field("Caption timing", (() => h("select", { onchange: e => { st.captions = e.target.value; save(); } },
+        [["auto", S.status.whisper.installed ? "Automatic: Faster Whisper" : "Automatic: estimated (Faster Whisper not installed)"],
+         ["whisper", "Faster Whisper (most accurate)"], ["estimate", "Estimated from the audio (fastest)"]]
+          .map(([val, t]) => h("option", { value: val, selected: (st.captions || "auto") === val, disabled: val === "whisper" && !S.status.whisper.installed }, t))))(),
+        "Whisper listens to the finished narration and times each caption word to it, on this computer."),
       h("label", { class: "check on" }, h("input", { type: "checkbox", checked: st.end_card !== false, onchange: e => { st.end_card = e.target.checked; save(); } }),
         "End card (1.8 s): Insidir wordmark, line and URL from Facts, with the disclaimer")),
     h("div", { class: "panel" }, h("h2", {}, "Music"),
@@ -460,7 +547,11 @@ function tabRender(el) {
     [S.status.kokoro.ready, "Kokoro voice model installed"],
     [p.script.beats.length > 0, "Script written"],
     [errors.length === 0, errors.length ? `Claim guard: ${errors.length} problem(s) on the Script tab` : "Claim guard passed"],
-    [p.assets.some(a => a.rights_confirmed && (a.role === "screen" || a.role === "image")), "At least one cleared demo recording or screenshot"],
+    p.mode === "animated"
+      ? [S.status.motion.ready, "Motion Canvas installed (Node.js + packages)"]
+      : [p.assets.some(a => a.rights_confirmed && (a.role === "screen" || a.role === "image")), "At least one cleared demo recording or screenshot"],
+    ...(p.mode === "animated" && p.template === "screen-sketch"
+      ? [[p.assets.some(a => a.rights_confirmed && a.genuine), "At least one cleared, genuine Insidir screenshot or recording"]] : []),
     [p.assets.filter(a => used.has(a.id)).every(a => a.rights_confirmed), "Rights confirmed for every file used"],
   ];
   const ready = checks.every(c => c[0]);
