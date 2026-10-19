@@ -5,7 +5,7 @@
    the site's logo face (Source Serif 4 Medium, letter-spacing -0.035em, as in base.css .logo).
    Paper-white (#e9e4da, the favicon's ink) with a soft shadow so it reads on any footage.
 2. No yellow, ever. Every finished video passes through a hue-keyed 3D LUT that desaturates
-   true yellows (hue ~45-72 degrees) and leaves everything else alone: skin, orange, red and
+   yellows and ambers (hue ~43-72 degrees, easing out to 35 and 80) and leaves everything else alone: skin, orange, red and
    gold-brown fur keep their colour, white stays white. (A generic "desaturate yellows" filter
    also greys out orange and skin; the LUT is exact.)
 """
@@ -96,14 +96,14 @@ def safe_color(hex_color: str | None, fallback: str = "#FFFFFF") -> str:
 
 
 def _desat_weight(h_deg: np.ndarray) -> np.ndarray:
-    """1 inside the yellow band, easing to 0 at its edges (orange <= 38, green >= 80 untouched)."""
+    """1 inside the yellow band, easing to 0 at its edges (orange <= 35, green >= 80 untouched)."""
     w = np.zeros_like(h_deg)
-    core = (h_deg >= 47) & (h_deg <= 70)
+    core = (h_deg >= 43) & (h_deg <= 72)
     w[core] = 1.0
-    lo = (h_deg > 38) & (h_deg < 47)
-    w[lo] = (h_deg[lo] - 38) / 9
-    hi = (h_deg > 70) & (h_deg < 80)
-    w[hi] = (80 - h_deg[hi]) / 10
+    lo = (h_deg > 35) & (h_deg < 43)
+    w[lo] = (h_deg[lo] - 35) / 8
+    hi = (h_deg > 72) & (h_deg < 80)
+    w[hi] = (80 - h_deg[hi]) / 8
     return 0.5 - 0.5 * np.cos(np.pi * w)                      # smooth ease, no banding
 
 
@@ -128,7 +128,7 @@ def noyellow_cube(path: Path, n: int = 33) -> Path:
 
 
 def cube_path() -> Path:
-    return noyellow_cube(config.studio_home() / "cache" / "noyellow-v1.cube")
+    return noyellow_cube(config.studio_home() / "cache" / "noyellow-v2.cube")
 
 
 def lut_filter(cube: Path) -> str:
