@@ -162,7 +162,7 @@ export function* editorialStory(view: View2D, data: RenderData): ThreadGenerator
   grid(view);
   // One continuing protagonist, reused across the whole video, built by the
   // same twelve dot positions and sizes as the actual Insidir favicon figure.
-  const [avatar, dot] = makeFigure(PAPER, 6.4, -336, 400);
+  const [avatar, dot] = makeFigure(PAPER, 6.4, -336, 190);
   view.add(avatar);
   spawn(figureIn(dot, 0.9));
   let previous: Node | null = null;
