@@ -21,8 +21,8 @@ There are no paid APIs, subscriptions, credits, credit cards or watermarks. Noth
 
 ## Install and launch on Windows 11
 
-1. On GitHub, open **spartanapparelbiz-ui/Insidir-Video-Studio**, switch to the branch **`claude/elegant-goodall-5totah`**, then click **Code → Download ZIP**. You can also clone it:
-   `git clone -b claude/elegant-goodall-5totah https://github.com/spartanapparelbiz-ui/Insidir-Video-Studio.git C:\InsidirVideoStudio`
+1. On GitHub, open **spartanapparelbiz-ui/Insidir-Video-Studio** (branch **`main`**), then click **Code → Download ZIP**. You can also clone it:
+   `git clone https://github.com/spartanapparelbiz-ui/Insidir-Video-Studio.git C:\InsidirVideoStudio`
 2. If you downloaded the ZIP, right-click it → **Extract All…** → `C:\InsidirVideoStudio`. Use a short path with no special characters.
 3. Open the folder and double-click **`install.bat`**. If Windows SmartScreen asks, click **More info → Run anyway**. The first run takes 5–15 minutes and downloads about 1 GB. It installs into the folder (no admin rights needed):
    1. Python 3.12 (with `winget`) if you don't have Python 3.10–3.13,
