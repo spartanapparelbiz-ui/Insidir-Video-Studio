@@ -28,9 +28,29 @@ def detect() -> dict:
         return {"device": "mps", "name": "Apple GPU (MPS)", "vram_gb": 0.0, "dtype": "float16",
                 "torch": torch.__version__, "ready": True,
                 "reason": "Apple GPUs work but are much slower than NVIDIA for these models."}
-    return {"device": "cpu", "name": "CPU only", "vram_gb": 0.0, "dtype": "float32", "torch": torch.__version__,
-            "ready": True, "reason": "No GPU found: real models run on the CPU, which takes a very long time "
-                                      "(use small sizes and few steps, or connect a GPU machine)."}
+    bf16 = cpu_bf16()
+    return {"device": "cpu", "name": "CPU only" + (" (bf16 matrix units)" if bf16 else ""), "vram_gb": 0.0,
+            "dtype": "bfloat16" if bf16 else "float32", "torch": torch.__version__, "ready": True,
+            "reason": "No GPU found: real models run on the CPU, which takes a very long time "
+                      "(use small sizes and few steps, or connect a GPU machine)."
+                      + (" This CPU has bf16 matrix units (AMX / AVX-512 BF16), so the models run in bfloat16: "
+                         "about 3-4x faster than float32." if bf16 else "")}
+
+
+def cpu_bf16() -> bool:
+    """CPUs with AMX or AVX-512 BF16 (recent Intel Xeon/Core, AMD Zen 4+) do bfloat16 matrix maths
+    ~4x faster than float32; Wan was trained in bf16, so nothing is lost. INSIDIR_CPU_DTYPE=float32
+    forces the old behaviour."""
+    import os
+    import torch
+    forced = os.environ.get("INSIDIR_CPU_DTYPE", "").lower()
+    if forced in ("float32", "bfloat16"):
+        return forced == "bfloat16"
+    cpu = getattr(torch, "cpu", None)
+    try:
+        return bool(cpu._is_amx_tile_supported() or cpu._is_avx512_bf16_supported())
+    except Exception:
+        return False
 
 
 def strategy(hw: dict, need_gb: float) -> str:

@@ -69,7 +69,7 @@ class Spec:
     steps: int = 0
     guidance: float = 0.0
     seed: int = -1
-    variations: int = 1
+    variations: int = 0               # takes to generate and score (0 = by quality level)
     image: str = ""                    # start frame (i2v, flf2v)
     last_image: str = ""               # end frame (flf2v)
     video: str = ""                    # source video (v2v, control, edit, extend)
@@ -97,7 +97,7 @@ def apply_quality(spec: "Spec", m: dict) -> tuple[int, int, bool, dict]:
     """(steps, variations, refine, post options) for the chosen quality level."""
     q = QUALITY.get(spec.quality, QUALITY["standard"])
     steps = spec.steps or max(4, int(round(m["default"]["steps"] * q["steps"])))
-    variations = spec.variations if spec.variations > 1 else q["variations"]
+    variations = spec.variations if spec.variations >= 1 else q["variations"]
     refine = q["refine"] if spec.refine is None else bool(spec.refine)
     opts = dict(spec.post)
     opts.setdefault("upscale", q["upscale"])
