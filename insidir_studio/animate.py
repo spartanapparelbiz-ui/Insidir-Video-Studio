@@ -29,6 +29,14 @@ ICONS = ["document", "form", "magnifier", "clock", "calendar", "bell", "link", "
 POSES = ["stand", "wave", "point", "pointleft", "pointup", "think", "shrug", "cheer", "explain", "walk", "sad"]
 
 TEMPLATES = {
+    "editorial-story": {
+        "name": "Editorial story (premium)",
+        "description": "Ten original kinetic finance scenes: dot figure, real document geometry, transaction codes, diagrams and SEC records.",
+        "best_for": "High-retention Insidir financial explainers with distinct imagery and restrained typography.",
+        "fields": ["headline", "icon", "pose"],
+        "frame_format": "jpeg",
+        "prompt": "Write ten concise beats that form one clear true finance story. For a Form 4 explainer, the scene sequence is: hook, zoom, public filing, transaction categories, sales, awards/options, transaction codes, source, research context, and takeaway. Keep each headline 2-5 words. Provide 65-75 spoken words overall.",
+    },
     "viral": {
         "name": "Viral cinematic",
         "description": "Huge kinetic captions, camera punch-ins, whip transitions, cinematic light and real Insidir screens under a spotlight.",
