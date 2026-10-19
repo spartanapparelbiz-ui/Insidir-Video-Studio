@@ -1,0 +1,98 @@
+"""Render a real, original Insidir Form 4 animated Reel for review.
+
+This is a reproducible production smoke test, not sample stock footage.
+Run from the repository root:
+    python examples/render_form4_reel.py --engine kokoro
+Set INSIDIR_STUDIO_HOME to move generated projects.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from insidir_studio import compliance, project, render
+
+# Short beats are intentional: frequent kinetic type and object transitions
+# create 10 distinct visual changes in roughly 30 seconds.
+STORYBOARD = [
+    ("Insider trade headlines leave things out.", "THE HEADLINE", "document"),
+    ("Here's what the filing actually shows.", "LOOK CLOSER", "magnifier"),
+    ("A Form 4 is public.", "FORM 4 IS PUBLIC", "form"),
+    ("Not every transaction is a purchase.", "NOT ALL BUYS", "question"),
+    ("Some are sales.", "SOME ARE SALES", "chart"),
+    ("Others are awards or option exercises.", "AWARDS AND OPTIONS", "tag"),
+    ("The transaction code explains the difference.", "CHECK THE CODE", "list"),
+    ("Open the original SEC filing.", "READ THE FILING", "document"),
+    ("Insidir links trades back to those records.", "BACK TO THE SOURCE", "link"),
+    ("Read the document, not just the headline.", "GO TO THE RECORD", "eye"),
+]
+
+
+def build_project():
+    p = project.new(
+        "Form 4 - the headline is not the filing",
+        {
+            "mode": "animated",
+            "template": "viral",
+            "topic": "What a public Form 4 filing actually shows",
+            "target_seconds": 30,
+            "audience": "Everyday people trying to understand financial filings",
+            "angle": "Fast, simple, credible public financial research",
+            "cta": "Read the public records at insidir.com",
+        },
+    )
+    d = project.project_dir(p["id"])
+    p["voice"]["voice"] = "studio_male"
+    p["style"].update({"quality": "standard", "captions": "auto", "end_card": True,
+                       "sfx": True, "music_bed": True, "caption_highlight": "#FFFFFF"})
+    p["script"] = {
+        "title": "THE HEADLINE IS NOT THE FILING",
+        "facts_used": ["form4_public", "purchases_apart", "links_to_filing"],
+        "beats": [
+            {
+                "id": f"b{i}",
+                "text": spoken,
+                "overlay": headline,
+                "visual": {"kind": "doodle", "icon": picture,
+                           "pose": ["think", "point", "explain"][i % 3]},
+            }
+            for i, (spoken, headline, picture) in enumerate(STORYBOARD, 1)
+        ],
+    }
+    errors = [x for x in compliance.lint(p["script"], compliance.load_facts(), [])
+              if x.get("level") == "error"]
+    if errors:
+        raise RuntimeError("Storyboard failed factual checks:\n" + json.dumps(errors, indent=2))
+    project.save(d, p)
+    return d
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--engine", choices=["kokoro", "test-tone"], default="kokoro")
+    parser.add_argument("--destination", type=Path, default=ROOT / "artifacts")
+    a = parser.parse_args()
+    d = build_project()
+    print(f"Rendering {d / 'project.json'}", flush=True)
+    result = render.render(d, engine_name=a.engine)
+    outputs = sorted((d / "out").glob("*.mp4"), key=lambda x: x.stat().st_mtime)
+    if not outputs:
+        raise RuntimeError("Renderer reported success but did not create an MP4")
+    a.destination.mkdir(parents=True, exist_ok=True)
+    out = a.destination / "insidir-form4-first-reel.mp4"
+    shutil.copy2(outputs[-1], out)
+    (a.destination / "render-report.json").write_text(
+        json.dumps(result, indent=2, default=str), encoding="utf-8"
+    )
+    print("Rendered output:", out.resolve(), flush=True)
+    print("Report:", json.dumps({k: result.get(k) for k in ("duration", "width", "height", "render_seconds")}), flush=True)
+
+
+if __name__ == "__main__":
+    main()
