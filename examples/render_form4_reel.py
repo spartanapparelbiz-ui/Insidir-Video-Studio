@@ -18,19 +18,17 @@ sys.path.insert(0, str(ROOT))
 
 from insidir_studio import compliance, project, render
 
-# Short beats are intentional: frequent kinetic type and object transitions
-# create 10 distinct visual changes in roughly 30 seconds.
+# A single slower narrative, not ten disconnected headline cards.
+# 8 distinct scenes; Dot the Insidir dot-figure follows the evidence.
 STORYBOARD = [
-    ("Insider trade headlines leave things out.", "THE HEADLINE", "document"),
-    ("Here's what the filing actually shows.", "LOOK CLOSER", "magnifier"),
-    ("A Form 4 is public.", "FORM 4 IS PUBLIC", "form"),
-    ("Not every transaction is a purchase.", "NOT ALL BUYS", "question"),
-    ("Some are sales.", "SOME ARE SALES", "chart"),
-    ("Others are awards or option exercises.", "AWARDS AND OPTIONS", "tag"),
-    ("The transaction code explains the difference.", "CHECK THE CODE", "list"),
-    ("Open the original SEC filing.", "READ THE FILING", "document"),
-    ("Insidir links trades back to those records.", "BACK TO THE SOURCE", "link"),
-    ("Read the document, not just the headline.", "GO TO THE RECORD", "eye"),
+    ("A headline says an insider traded. But what actually happened?", "HEADLINES MISS CONTEXT", "document"),
+    ("Meet Dot. Dot checks the public Form Four instead.", "OPEN THE SOURCE", "form"),
+    ("One filing can show a purchase, sale, award, or option exercise.", "DIFFERENT TRANSACTIONS", "list"),
+    ("Those aren't the same thing. Transaction codes tell them apart.", "READ THE CODE", "tag"),
+    ("That's where context starts, not with a headline.", "CONTEXT MATTERS", "eye"),
+    ("Insidir separates the activity into plain language.", "LESS NOISE. MORE CLARITY.", "people"),
+    ("And links each transaction back to the original SEC filing.", "BACK TO THE SOURCE", "link"),
+    ("Follow the source. Understand the story. That's Insidir.", "THE RECORD COMES FIRST", "document"),
 ]
 
 
@@ -41,16 +39,16 @@ def build_project():
             "mode": "animated",
             "template": "editorial-story",
             "topic": "What a public Form 4 filing actually shows",
-            "target_seconds": 30,
+            "target_seconds": 33,
             "audience": "Everyday people trying to understand financial filings",
-            "angle": "Fast, simple, credible public financial research",
+            "angle": "Considered, personal, source-first financial research",
             "cta": "Read the public records at insidir.com",
         },
     )
     d = project.project_dir(p["id"])
-    p["voice"]["voice"] = "studio_male"
+    p["voice"]["voice"] = "studio_male"\n    p["voice"]["speed"] = 0.93
     p["style"].update({"quality": "standard", "captions": "auto", "end_card": True,
-                       "sfx": True, "music_bed": True, "caption_highlight": "#FFFFFF", "caption_size": 0.88, "caption_words": 2})
+                       "sfx": True, "music_bed": True, "caption_highlight": "#FFFFFF", "caption_size": 0.80, "caption_words": 3, "logo_overlay": False})
     p["script"] = {
         "title": "THE HEADLINE IS NOT THE FILING",
         "facts_used": ["form4_public", "purchases_apart", "links_to_filing"],
