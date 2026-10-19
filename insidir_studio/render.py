@@ -7,7 +7,7 @@ import shutil
 import time
 from pathlib import Path
 
-from . import animate, audio, avatar, captions, compliance, config, media, project, timeline, tts, whisper_align
+from . import animate, audio, sound, avatar, captions, compliance, config, media, project, timeline, tts, whisper_align
 
 W, H, FPS = config.WIDTH, config.HEIGHT, config.FPS
 INK = "0x111111"
@@ -153,20 +153,31 @@ def _concat(files: list[Path], out: Path, log=None) -> Path:
     return out
 
 
-def _audio_graph(n_video: int, has_music: bool, total: float, music_db: float) -> str:
-    # the narration arrives already mastered to -14 LUFS (audio.master_voice)
+def _audio_graph(n_video: int, has_music: bool, total: float, music_db: float, has_sfx: bool = False) -> str:
+    """Voice (pre-mastered) + optional music ducked under it + optional SFX stem."""
     a = n_video
     fade_out = max(0.0, total - 1.2)
-    voice = f"[{a}:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,apad,atrim=0:{total:.3f}"
-    if not has_music:
+    fmt = "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo"
+    voice = f"[{a}:a]{fmt},apad,atrim=0:{total:.3f}"
+    sfx_in = a + 1 + (1 if has_music else 0)
+    if not has_music and not has_sfx:
         return voice + "[aout]"
-    return (
-        voice + ",asplit=2[voice][sc];"
-        f"[{a + 1}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:{total:.3f},"
-        f"volume={music_db}dB,afade=t=in:d=0.6,afade=t=out:st={fade_out:.2f}:d=1.2[music];"
-        "[music][sc]sidechaincompress=threshold=0.04:ratio=10:attack=15:release=350[duck];"
-        "[voice][duck]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.89:level=disabled[aout]"
-    )
+    parts = []
+    mix = ["[voice]"]
+    if has_music:
+        parts.append(voice + ",asplit=2[voice][sc]")
+        parts.append(f"[{a + 1}:a]aresample=48000,{fmt},atrim=0:{total:.3f},"
+                     f"volume={music_db}dB,afade=t=in:d=0.6,afade=t=out:st={fade_out:.2f}:d=1.2[music]")
+        parts.append("[music][sc]sidechaincompress=threshold=0.04:ratio=10:attack=15:release=350[duck]")
+        mix.append("[duck]")
+    else:
+        parts.append(voice + "[voice]")
+    if has_sfx:
+        parts.append(f"[{sfx_in}:a]{fmt},apad,atrim=0:{total:.3f}[sfx]")
+        mix.append("[sfx]")
+    parts.append("".join(mix) + f"amix=inputs={len(mix)}:normalize=0:duration=first,"
+                 "alimiter=limit=0.89:level=disabled[aout]")
+    return ";".join(parts)
 
 
 # ----------------------------------------------------------------- main entry
@@ -332,6 +343,7 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
         disclaimer=facts.get("disclaimer") or compliance.AUTO_DISCLAIMER,
         end_card=end_card, end_card_start=end_card_start,
         ai_voice_label="AI voice" if proj.get("style", {}).get("ai_voice_label") else "",
+        show_captions=not (mode == "animated" and animate.TEMPLATES.get(proj.get("template"), {}).get("own_captions")),
     )
     (build / "captions.ass").write_text(ass, encoding="utf-8")
 
@@ -343,9 +355,26 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
     for rf in run_files:
         inputs += ["-i", str(rf.relative_to(build))]
     inputs += ["-i", str(voice_wav.relative_to(build))]
+    style = proj.get("style", {})
+    tpl = animate.TEMPLATES.get(proj.get("template"), {}) if mode == "animated" else {}
     music = next((a for a in assets if a.get("role") == "music" and a.get("rights_confirmed")), None)
+    use_music = False
+    music_db = float(proj.get("music", {}).get("volume_db", -20))
     if music and proj.get("music", {}).get("enabled", True):
         inputs += ["-stream_loop", "-1", "-i", str(project_dir / music["file"])]
+        use_music = True
+    elif style.get("music_bed", True):
+        # an original bed synthesized for this video (nothing to license)
+        bed = sound.write_wav(build / "music_bed.wav", sound.music_bed(total + 0.5))
+        inputs += ["-i", str(bed.relative_to(build))]
+        use_music = True
+        music_db = float(proj.get("music", {}).get("bed_db", -6))
+    use_sfx = bool(style.get("sfx", True))
+    if use_sfx:
+        spans = timeline.beat_spans(nar.beats, nar.duration)
+        events = sound.plan_events(beats, spans, words, end_card_start, proj.get("template") if mode == "animated" else "demo")
+        sfx_wav = sound.write_wav(build / "sfx.wav", sound.sfx_track(events, total + 0.1))
+        inputs += ["-i", str(sfx_wav.relative_to(build))]
     parts = [f"[{i}:v]settb=AVTB,fps={out_fps},format=yuv420p[r{i}]" for i in range(len(run_files))]
     cur = "r0"
     offset = run_durs[0]
@@ -354,9 +383,9 @@ def render(project_dir: Path, settings: dict | None = None, log=print, progress=
         parts.append(f"[{cur}][r{i}]xfade=transition={tr['type']}:duration={tr['duration']}:offset={offset:.4f}[x{i}]")
         cur = f"x{i}"
         offset += run_durs[i]
-    parts.append(f"[{cur}]ass=captions.ass:fontsdir=fonts,format=yuv420p[vout]")
-    parts.append(_audio_graph(len(run_files), bool(music and proj.get("music", {}).get("enabled", True)),
-                              total, float(proj.get("music", {}).get("volume_db", -20))))
+    grain = ",noise=c0s=9:c1s=3:c2s=3:allf=t" if tpl.get("grain") else ""
+    parts.append(f"[{cur}]format=yuv420p{grain},ass=captions.ass:fontsdir=fonts,format=yuv420p[vout]")
+    parts.append(_audio_graph(len(run_files), use_music, total, music_db, has_sfx=use_sfx))
     out_dir = project_dir / "out"
     out_dir.mkdir(exist_ok=True)
     stamp = time.strftime("%Y%m%d-%H%M%S")

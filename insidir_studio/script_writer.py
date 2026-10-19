@@ -27,7 +27,7 @@ SCHEMA_EXAMPLE = {
 }
 
 HOOKS = {
-    "question": "Open with a direct question the viewer has asked themselves.",
+    "question": "Open with a sharp question that opens a curiosity gap the video pays off later.",
     "myth": "Open by correcting a common misconception about insider trades (truthfully).",
     "how-to": "Open by promising a concrete skill the video teaches.",
     "pov": "Open with a 'POV:' style relatable moment, without claiming personal results.",
@@ -253,6 +253,19 @@ TEMPLATES = [
 
 # Offline drafts for the animated templates: (text, headline, icon, pose, label, emphasis, use_asset)
 ANIMATED_DRAFTS = {
+    "viral": {
+        "title": "The trades executives have to report",
+        "facts_used": ["form4_deadline", "form4_public", "purchases_apart", "links_to_filing"],
+        "beats": [
+            ("When a CEO buys their own stock, they have to tell everyone.", "They have to tell you", "eye", "", "", "", False),
+            ("It's called a Form 4.", "Form 4", "form", "", "", "", False),
+            ("And it's due within two business days.", "The deadline", "clock", "", "", "2 business days", False),
+            ("It's public. Anyone can read it.", "Public record", "", "", "", "", True),
+            ("Insidir keeps real buys apart from awards and option exercises.", "Real buys only", "", "", "", "", True),
+            ("Every line links to the original filing.", "Check the source", "link", "", "", "", False),
+            ("Read them yourself at insidir dot com.", "insidir.com", "magnifier", "", "", "", False),
+        ],
+    },
     "dot-explainer": {
         "title": "Insiders file too",
         "facts_used": ["form4_deadline", "form4_public", "purchases_apart", "links_to_filing"],

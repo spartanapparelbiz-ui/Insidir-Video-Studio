@@ -63,7 +63,7 @@ def _clean(word: str) -> str:
 
 def build_ass(words: list, shots: list[dict], beats: list[dict], beat_times: list[dict],
               total: float, highlight: str, disclaimer: str, end_card: dict | None,
-              end_card_start: float | None, ai_voice_label: str = "") -> str:
+              end_card_start: float | None, ai_voice_label: str = "", show_captions: bool = True) -> str:
     W, H = config.WIDTH, config.HEIGHT
     hl = _ass_color(highlight)
     header = f"""[Script Info]
@@ -98,7 +98,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     # -- captions: each group gets one event per word so the spoken word lights up
     cap_y = int(H * 0.705)
-    groups = group_words(words)
+    groups = group_words(words) if show_captions else []
     for gi, g in enumerate(groups):
         g_start = g[0].start - 0.05
         nxt = groups[gi + 1][0].start - 0.05 if gi + 1 < len(groups) else caption_end

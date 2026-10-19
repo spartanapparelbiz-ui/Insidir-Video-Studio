@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT))
 TMP = Path(tempfile.mkdtemp(prefix="ivs-test-"))
 os.environ["INSIDIR_STUDIO_HOME"] = str(TMP)
 
-from insidir_studio import (animate, captions, compliance, config, media, project, render,  # noqa: E402
+from insidir_studio import (animate, captions, sound, compliance, config, media, project, render,  # noqa: E402
                             script_writer, timeline, tts, whisper_align)
 
 FACTS = compliance.load_facts(config.DEFAULT_FACTS)
@@ -165,6 +165,36 @@ class AlignTests(unittest.TestCase):
             self.assertGreater(b, a)
             self.assertLessEqual(b, dur + 1e-6)
             last = b
+
+
+class SoundTests(unittest.TestCase):
+    def test_sfx_and_bed_are_generated_and_bounded(self):
+        import numpy as np
+        for name, fn in sound.SFX.items():
+            x = fn()
+            self.assertGreater(len(x), 100, name)
+            self.assertLessEqual(float(np.max(np.abs(x))), 1.0, name)
+        bed = sound.music_bed(6.0)
+        self.assertEqual(bed.shape, (6 * sound.SR, 2))
+        self.assertLessEqual(float(np.max(np.abs(bed))), 0.51)
+        track = sound.sfx_track([(0.0, "hit"), (1.0, "whoosh"), (5.0, "riser")], 6.0)
+        self.assertEqual(len(track), 6 * sound.SR)
+
+    def test_events_follow_the_edit(self):
+        beats = [{"id": "b1", "visual": {}}, {"id": "b2", "visual": {"emphasis": "2 business days"}}]
+        ev = sound.plan_events(beats, [(0, 2), (2, 4)], [], 4.0, "viral")
+        kinds = [k for _, k in ev]
+        self.assertIn("whoosh", kinds)
+        self.assertEqual(kinds.count("hit"), 3)  # hook, big number, end card
+        self.assertIn("riser", kinds)
+
+    def test_audio_graph_variants(self):
+        from insidir_studio import render as r
+        self.assertTrue(r._audio_graph(1, False, 10, -20).endswith("[aout]"))
+        g = r._audio_graph(1, True, 10, -6, has_sfx=True)
+        self.assertIn("sidechaincompress", g)
+        self.assertIn("[3:a]", g)  # sfx stem after voice and music
+        self.assertIn("amix=inputs=3", g)
 
 
 class WhisperMatchTests(unittest.TestCase):

@@ -6,6 +6,7 @@ A local, free app for Windows 11 that makes 20–35 second vertical (1080×1920)
 - **Motion Canvas animates it.** Five reusable templates are drawn in a hand-drawn chalkboard style with **Rough.js**. The narrator is the **Insidir dot figure**: the dotted "i" of the Insidir favicon, read as a little person that waves, points, thinks, shrugs and cheers. Frames render headlessly in Microsoft Edge (built into Windows 11) and stream straight into FFmpeg.
 - **Kokoro speaks it, mastered like a real voice-over.** Kokoro-82M (Apache-2.0) runs on your CPU using the full-precision model. Pick **Man** or **Woman** in **Voice & look**. The default man's voice is **Studio Male** (a Michael + Fenrir blend, the clearest male voice in testing), with Studio Male Deep and single voices as options. The woman's default is **Studio Warm**, a blend of Kokoro's two top-rated voices (Heart and Bella). Every narration is upsampled to 48 kHz with soxr and run through EQ (less mud, more warmth and presence), de-essing, gentle compression and a two-pass loudness match to −14 LUFS. "Insidir" is always pronounced "insider", while captions keep the real spelling.
 - **Faster Whisper times the captions.** It listens to the finished narration and lines every caption word up with the voice, on your computer. It matched 94–96% of words in testing; if it's missing, timing is estimated from the audio.
+- **Sound design and music, made on your PC.** Whooshes land on every cut, hits on the hook and big numbers, and a riser leads into the end card. An original dark, minimal music bed sits under the voice and ducks while it speaks. Every sound is synthesized from oscillators and noise when you render, so there is no sample library and nothing to license. Your own licensed track replaces the bed if you add one. Both can be switched off in **Voice & look**.
 - **High quality by default.** Animated templates render at 60 fps from a near-lossless intermediate. The final encode is H.264 High (slow preset, CRF 16, tuned for animation), BT.709 colour, 48 kHz / 256 kbps AAC. Switch to **Standard** (30 fps) in **Voice & look** for faster renders.
 - **FFmpeg edits and exports it.** It burns in captions that pop and highlight each word as it's spoken, the AI labels and the end card, mixes the voice (and optional licensed music) to −14 LUFS, and exports H.264 MP4.
 - **The screen-recording demo style is still here.** It makes cinematic cuts of your real Insidir recordings: J-cuts, wide → tight → tighter framing, slow push-ins.
@@ -42,10 +43,11 @@ To update later, download the new ZIP (or `git pull`) into the same folder and r
 
 To use the smaller 88 MB voice model on a slow machine, run `.venv\Scripts\python -m insidir_studio download-models --small`.
 
-## The five animated templates
+## The animated templates
 
 | Template | What happens on screen | Use it for |
 |---|---|---|
+| **Viral cinematic** (default) | Huge kinetic captions that light up word by word, camera punch-ins, whip transitions with motion blur, cinematic light and film grain, approved figures that count up, and your real Insidir screens in a floating device with a spotlight. A progress bar runs along the top. | Reach on TikTok, Reels and Shorts. |
 | **Dot explainer** | The dot figure explains one idea per beat. A doodle (form, calendar, magnifier…) is drawn on beside it and the headline is written in with an underline. | Any topic. The default. |
 | **Myth vs fact** | Cards whip in. MYTH cards get scribbled out in red while the figure shrugs; FACT cards get a green tick. | Correcting misconceptions. |
 | **Step by step** | Numbered hand-drawn boxes joined by arrows, each ticked off as the next one starts. | How-tos. |

@@ -29,6 +29,20 @@ ICONS = ["document", "form", "magnifier", "clock", "calendar", "bell", "link", "
 POSES = ["stand", "wave", "point", "pointleft", "pointup", "think", "shrug", "cheer", "explain", "walk", "sad"]
 
 TEMPLATES = {
+    "viral": {
+        "name": "Viral cinematic",
+        "description": "Huge kinetic captions, camera punch-ins, whip transitions, cinematic light and real Insidir screens under a spotlight.",
+        "best_for": "Short-form reach: TikTok, Reels, Shorts.",
+        "fields": ["headline", "icon", "emphasis", "asset", "focus"],
+        "own_captions": True,
+        "frame_format": "jpeg",
+        "grain": True,
+        "prompt": "Write for retention. Beat 1 is a pattern-interrupt hook of 4-9 words that opens a curiosity gap "
+                  "(a question or a surprising true fact); the payoff comes in a later beat. Keep every sentence short "
+                  "and spoken, one idea per beat, 1.5-3.5 seconds each. Each beat's headline is 1-4 punchy words shown huge "
+                  "on screen. Put an approved figure in 'emphasis' on 1-2 beats (it counts up on screen). Use real Insidir "
+                  "footage (visual.asset) on 1-3 beats and say in 'shot' what to spotlight. End with a clear call to action.",
+    },
     "dot-explainer": {
         "name": "Dot explainer",
         "description": "The Insidir dot figure explains one idea per beat while a doodle is drawn beside it.",
@@ -192,6 +206,7 @@ def build_job(proj: dict, beats: list[dict], spans: list[tuple[float, float]], b
         "palette": PALETTE,
         "beats": out_beats,
         "words": [{"text": w.text, "start": w.start, "end": w.end, "beat": w.beat} for w in words],
+        "frame_format": TEMPLATES.get(template, {}).get("frame_format", "png"),
     }
     (job / "data.json").write_text(json.dumps(data, indent=1), encoding="utf-8")
     return job

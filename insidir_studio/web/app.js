@@ -553,7 +553,11 @@ function tabLook(el) {
         h("label", { class: "check on" }, h("input", { type: "checkbox", checked: p.music.enabled, onchange: e => { p.music.enabled = e.target.checked; save(); } }), `Use "${music.label}" (ducked under the voice)`),
         h("div", { class: "row" }, h("span", { class: "hint" }, "Music level"), vol),
         music.rights_confirmed ? null : h("div", { class: "notice" }, "Confirm you have a commercial licence for this track on the Footage tab, or it will be left out."))
-        : h("p", { class: "hint" }, "No music. Add a track you have a commercial licence for on the Footage tab (optional).")),
+        : h("p", { class: "hint" }, "Add a track you have a commercial licence for on the Footage tab, or use the studio's own bed below."),
+      h("label", { class: "check" + (st.music_bed !== false ? " on" : "") }, h("input", { type: "checkbox", checked: st.music_bed !== false, onchange: e => { st.music_bed = e.target.checked; save(); renderProject(); } }),
+        "Original music bed when no track is added: a dark, minimal beat generated on this PC for each video (yours to use, nothing to license)"),
+      h("label", { class: "check" + (st.sfx !== false ? " on" : "") }, h("input", { type: "checkbox", checked: st.sfx !== false, onchange: e => { st.sfx = e.target.checked; save(); renderProject(); } }),
+        "Sound design: whooshes on cuts, hits on the hook and big numbers, a riser into the end card (also generated on this PC)")),
     h("div", { class: "panel" }, h("h2", {}, "Presenter"),
       presenter ? h("p", {}, `Presenter image: ${presenter.label}${presenter.ai_generated ? " (AI-generated, labelled on screen)" : ""}. Use "Presenter" as the visual type on any beat.`)
         : h("p", { class: "hint" }, "Optional. Upload a presenter photo on the Footage tab and set it to Presenter. Without a talking-avatar model it appears with slow camera motion while the voice plays."),

@@ -24,7 +24,9 @@ class PipeExporter implements Exporter {
 
   public async handleFrame(canvas: HTMLCanvasElement, frame: number) {
     if (!window.ivsFrame) throw new Error('ivsFrame bridge missing');
-    await window.ivsFrame(frame, canvas.toDataURL('image/png'));
+    // JPEG at q0.96 for gradient-heavy cinematic frames (much faster to encode than PNG)
+    const jpeg = (window as any).__IVS_DATA__?.frame_format === 'jpeg';
+    await window.ivsFrame(frame, jpeg ? canvas.toDataURL('image/jpeg', 0.96) : canvas.toDataURL('image/png'));
   }
 
   public async stop(result: RendererResult) {
