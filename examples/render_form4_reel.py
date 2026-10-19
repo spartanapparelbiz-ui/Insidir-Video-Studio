@@ -22,7 +22,7 @@ from insidir_studio import compliance, project, render
 # 8 distinct scenes; Dot the Insidir dot-figure follows the evidence.
 STORYBOARD = [
     ("A headline says an insider traded. But what actually happened?", "HEADLINES MISS CONTEXT", "document"),
-    ("Meet Dot. Dot checks the public Form Four instead.", "OPEN THE SOURCE", "form"),
+    ("Meet Dot. Dot checks the public Form 4 instead.", "OPEN THE SOURCE", "form"),
     ("One filing can show a purchase, sale, award, or option exercise.", "DIFFERENT TRANSACTIONS", "list"),
     ("Those aren't the same thing. Transaction codes tell them apart.", "READ THE CODE", "tag"),
     ("That's where context starts, not with a headline.", "CONTEXT MATTERS", "eye"),
