@@ -728,7 +728,7 @@ function tabLook(el) {
   p.avatar = p.avatar || { character: "dot" };
   p.chat = p.chat || { me: "Insidir", them: "Alex" };
   const chatInput = (k) => { const i = h("input", { type: "text", value: p.chat[k], maxlength: 24 }); i.oninput = () => { p.chat[k] = i.value; save(); }; return i; };
-  el.append(
+  el.append(...[
     p.mode === "animated" && p.template === "avatar-host" ? h("div", { class: "panel" }, h("h2", {}, "Host"),
       h("p", { class: "hint" }, "A cartoon character drawn on this PC. Its mouth follows the voice frame by frame; it blinks, nods and gestures on each beat."),
       h("div", { class: "seg" }, Object.entries(chars).map(([id, name]) =>
@@ -779,7 +779,7 @@ function tabLook(el) {
         "Animate the presenter with the local talking-avatar model"),
       av.usable ? h("div", { class: "notice ok" }, "Avatar model ready. Avatar shots are always labelled \"AI-generated presenter\".")
         : h("div", { class: "notice" }, "Avatar step unavailable: " + av.reasons.join(" "))),
-    h("button", { class: "primary", onclick: () => { S.tab = "render"; renderProject(); } }, "Next: render"));
+    h("button", { class: "primary", onclick: () => { S.tab = "render"; renderProject(); } }, "Next: render")].filter(Boolean));
 }
 
 // Font choice with a live preview. The fonts are served by the studio itself (/fonts/...).
