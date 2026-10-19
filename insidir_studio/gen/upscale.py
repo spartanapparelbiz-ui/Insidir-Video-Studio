@@ -97,11 +97,18 @@ def load(log=None):
         net = _net()
         state = torch.load(ensure_weights(log), map_location="cpu", weights_only=True)
         net.load_state_dict(state.get("params_ema") or state.get("params") or state, strict=True)
+        from . import hardware
         dev = "cuda" if torch.cuda.is_available() else "cpu"
         net.eval().to(dev)
         if dev == "cuda":
             net.half()
-        _model.update(net=net, dev=dev)
+            dtype = torch.float16
+        elif hardware.cpu_bf16():   # AMX / AVX-512 BF16: ~3x faster on the CPU
+            net.to(torch.bfloat16)
+            dtype = torch.bfloat16
+        else:
+            dtype = torch.float32
+        _model.update(net=net, dev=dev, dtype=dtype)
     return _model["net"], _model["dev"]
 
 
@@ -112,7 +119,7 @@ def upscale_frame(img: np.ndarray, tile: int = 192, pad: int = 12, log=None) -> 
     h, w, _ = img.shape
     x = torch.from_numpy(img).permute(2, 0, 1).float().div(255).unsqueeze(0)
     out = torch.zeros(1, 3, h * 4, w * 4)
-    dtype = torch.float16 if dev == "cuda" else torch.float32
+    dtype = _model.get("dtype", torch.float32)
     with torch.no_grad():
         for y0 in range(0, h, tile):
             for x0 in range(0, w, tile):
