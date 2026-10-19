@@ -260,7 +260,8 @@ class Handler(BaseHTTPRequestHandler):
             compliance.save_facts(self._body_json())
             return self._json(compliance.load_facts())
         if route == ("GET", "voices"):
-            return self._json({"voices": tts.VOICES})
+            return self._json({"voices": tts.VOICES, "gender": {v: tts.gender_of(v) for v in tts.VOICES},
+                               "defaults": tts.DEFAULT_BY_GENDER})
         if method == "GET" and p[:1] == ["jobs"] and len(p) == 2:
             job = JOBS.get(p[1])
             if not job:

@@ -137,6 +137,15 @@ class VoiceTests(unittest.TestCase):
         t = "Try Insidir today, at insidir.com."
         self.assertEqual(len(t.split()), len(tts.speakable(t).split()))
 
+    def test_man_and_woman_voices(self):
+        self.assertEqual(tts.gender_of(tts.DEFAULT_VOICE), "man")
+        for g, v in tts.DEFAULT_BY_GENDER.items():
+            self.assertEqual(tts.gender_of(v), g)
+        genders = {tts.gender_of(v) for v in tts.VOICES}
+        self.assertEqual(genders, {"man", "woman"})
+        self.assertEqual(tts.gender_of("am_michael"), "man")
+        self.assertEqual(tts.gender_of("bf_emma"), "woman")
+
     def test_unknown_voice_falls_back(self):
         self.assertEqual(tts.valid_voice("am_adam_removed"), tts.DEFAULT_VOICE)
         self.assertEqual(whisper_align._norm("Insidir"), "insider")

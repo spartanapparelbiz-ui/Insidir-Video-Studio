@@ -57,9 +57,11 @@ async function boot() {
   document.getElementById("modal-close").onclick = closeModal;
   document.getElementById("modal").addEventListener("click", e => { if (e.target.id === "modal") closeModal(); });
   try {
-    [S.status, S.settings, S.facts, S.voices] = await Promise.all([
-      api("GET", "status"), api("GET", "settings"), api("GET", "facts"), api("GET", "voices").then(v => v.voices),
+    let v;
+    [S.status, S.settings, S.facts, v] = await Promise.all([
+      api("GET", "status"), api("GET", "settings"), api("GET", "facts"), api("GET", "voices"),
     ]);
+    S.voices = v.voices; S.voiceGender = v.gender; S.voiceDefaults = v.defaults;
   } catch (e) { toast("Could not reach the studio: " + e.message, true); return; }
   renderPills();
   await loadProjects();
@@ -483,8 +485,15 @@ function renderIssues() {
 // ------------------------------------------------------------ 4 look
 function tabLook(el) {
   const p = P(), v = p.voice, st = p.style;
+  if (!S.voices[v.voice]) v.voice = S.voiceDefaults.man;
+  const gender = S.voiceGender[v.voice];
   const voice = h("select", { onchange: e => { v.voice = e.target.value; save(); } },
-    Object.entries(S.voices).map(([id, name]) => h("option", { value: id, selected: v.voice === id }, name)));
+    Object.entries(S.voices).filter(([id]) => S.voiceGender[id] === gender)
+      .map(([id, name]) => h("option", { value: id, selected: v.voice === id }, name)));
+  const pick = g => () => { if (gender !== g) { v.voice = S.voiceDefaults[g]; save(); renderProject(); } };
+  const genderSwitch = h("div", { class: "seg" },
+    h("button", { class: gender === "man" ? "on" : "", onclick: pick("man") }, "Man"),
+    h("button", { class: gender === "woman" ? "on" : "", onclick: pick("woman") }, "Woman"));
   const speedLabel = h("b", {}, (v.speed || 1).toFixed(2) + "×");
   const speed = h("input", { type: "range", min: 0.85, max: 1.2, step: 0.01, value: v.speed || 1 });
   speed.oninput = () => { v.speed = Number(speed.value); speedLabel.textContent = v.speed.toFixed(2) + "×"; save(); };
@@ -508,6 +517,7 @@ function tabLook(el) {
   el.append(
     h("div", { class: "panel" }, h("h2", {}, "Voice"),
       h("p", { class: "hint" }, "Kokoro-82M runs on this computer (Apache-2.0, commercial use allowed). Every render is mastered like a voice-over: EQ, de-essing, compression and -14 LUFS loudness. \"Insidir\" is pronounced \"insider\"."),
+      field("Narrator", genderSwitch),
       h("div", { class: "grid2" }, field("Kokoro voice", voice), h("label", { class: "field" }, h("span", {}, "Speaking rate"), h("div", { class: "row" }, speed, speedLabel))),
       field("Preview line", sample), play, audio),
     h("div", { class: "panel" }, h("h2", {}, "Look"),
@@ -685,7 +695,7 @@ function modalSettings(el) {
       c(av, "license_confirmed", "I checked the licence of this model, its code and all its weights, and it allows this use")),
     h("div", { class: "panel" }, h("h3", {}, "Defaults for new videos"),
       h("div", { class: "grid2" },
-        field("Voice", (() => h("select", { onchange: e => (s.voice = e.target.value) }, Object.entries(S.voices).map(([id, n]) => h("option", { value: id, selected: s.voice === id }, n))))()),
+        field("Voice", (() => h("select", { onchange: e => (s.voice = e.target.value) }, Object.entries(S.voices).map(([id, n]) => h("option", { value: id, selected: s.voice === id }, (S.voiceGender[id] === "man" ? "Man · " : "Woman · ") + n))))()),
         field("Caption highlight", (() => { const x = h("input", { type: "color", value: s.caption_highlight }); x.oninput = () => (s.caption_highlight = x.value); return x; })()))),
     h("p", { class: "hint" }, "Projects and models live in " + S.status.home),
     h("button", { class: "primary", onclick: async () => {

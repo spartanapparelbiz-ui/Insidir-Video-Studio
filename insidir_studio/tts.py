@@ -28,24 +28,37 @@ LEAD_IN = 0.12
 # Best-sounding Kokoro voices first (Kokoro's own quality grades in brackets). The
 # "studio" entries blend two voice styles, which smooths out each voice's quirks.
 VOICES = {
-    "studio_warm": "Studio Warm (US, female): Heart + Bella blend [recommended]",
-    "af_heart": "Heart (US, female, warm) [A]",
-    "af_bella": "Bella (US, female, bright) [A-]",
-    "studio_bright": "Studio Bright (US, female): Bella + Nicole blend",
-    "af_nicole": "Nicole (US, female, soft, close-mic) [B-]",
-    "studio_male": "Studio Male (US, male): Michael + Fenrir blend",
-    "am_michael": "Michael (US, male, steady) [C+]",
-    "am_fenrir": "Fenrir (US, male, deep) [C+]",
-    "am_puck": "Puck (US, male, lively) [C+]",
-    "bf_emma": "Emma (UK, female) [B-]",
-    "bm_george": "George (UK, male) [C]",
+    "studio_male": "Studio Male (US): Michael + Fenrir blend [recommended]",
+    "studio_male_deep": "Studio Male Deep (US): Michael + Puck blend, lower and calmer",
+    "am_michael": "Michael (US, steady) [C+]",
+    "am_fenrir": "Fenrir (US, clear) [C+]",
+    "am_puck": "Puck (US, lively) [C+]",
+    "bm_george": "George (UK) [C]",
+    "studio_warm": "Studio Warm (US): Heart + Bella blend [recommended]",
+    "af_heart": "Heart (US, warm) [A]",
+    "af_bella": "Bella (US, bright) [A-]",
+    "studio_bright": "Studio Bright (US): Bella + Nicole blend",
+    "af_nicole": "Nicole (US, soft, close-mic) [B-]",
+    "bf_emma": "Emma (UK) [B-]",
 }
 BLENDS = {
+    "studio_male": [("am_michael", 0.55), ("am_fenrir", 0.45)],
+    "studio_male_deep": [("am_michael", 0.5), ("am_puck", 0.5)],
     "studio_warm": [("af_heart", 0.65), ("af_bella", 0.35)],
     "studio_bright": [("af_bella", 0.6), ("af_nicole", 0.4)],
-    "studio_male": [("am_michael", 0.55), ("am_fenrir", 0.45)],
 }
-DEFAULT_VOICE = "studio_warm"
+
+
+def gender_of(voice: str) -> str:
+    """'man' or 'woman' for every voice in VOICES."""
+    if voice.startswith("studio_"):
+        return "man" if voice.startswith("studio_male") else "woman"
+    return "man" if voice[1:2] == "m" else "woman"
+
+
+# the best voice for each choice in the studio's Man / Woman switch
+DEFAULT_BY_GENDER = {"man": "studio_male", "woman": "studio_warm"}
+DEFAULT_VOICE = DEFAULT_BY_GENDER["man"]
 
 # How words are *said* (captions still show the real spelling). Word counts must not
 # change, so every replacement is one word for one word.

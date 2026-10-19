@@ -144,6 +144,10 @@ pre.log { max-height: 220px; overflow: auto; background: #000; padding: 10px; fo
 .notice { border-left: 3px solid var(--warn); padding: 8px 12px; background: var(--ink-2); color: var(--muted); margin: 10px 0; font-size: 13px; }
 .notice.ok { border-color: var(--up); }
 
+.seg { display: inline-flex; border: 1px solid var(--line); }
+.seg button { border: 0; padding: 9px 22px; background: var(--ink-2); color: var(--muted); font-weight: 700; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.on { background: var(--paper); color: var(--ink); }
 .tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
 .tcard { display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 8px; background: var(--ink); }
 .tcard img, .tcard .tdemo { width: 100%; aspect-ratio: 300/417; object-fit: cover; background: #000; border: 1px solid var(--line); }

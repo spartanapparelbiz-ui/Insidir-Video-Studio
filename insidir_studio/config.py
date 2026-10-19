@@ -35,7 +35,7 @@ KOKORO_FILES = {
 }
 
 DEFAULT_SETTINGS = {
-    "voice": "studio_warm",
+    "voice": "studio_male",
     "speed": 1.0,
     "caption_highlight": "#FFD84D",
     "transitions": "cinematic",  # or "cuts"

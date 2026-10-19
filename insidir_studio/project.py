@@ -50,7 +50,7 @@ def new(name: str, brief: dict | None = None) -> dict:
         # "demo" cuts real screen recordings; "animated" draws a Motion Canvas template
         "mode": (brief or {}).get("mode") or "animated",
         "template": (brief or {}).get("template") or "dot-explainer",
-        "voice": {"voice": settings.get("voice", "studio_warm"), "speed": settings.get("speed", 1.0)},
+        "voice": {"voice": settings.get("voice", "studio_male"), "speed": settings.get("speed", 1.0)},
         "style": {"caption_highlight": settings.get("caption_highlight", "#FFD84D"),
                   "transitions": settings.get("transitions", "cinematic"), "end_card": True,
                   "captions": "auto", "quality": "high", "ai_voice_label": False},
