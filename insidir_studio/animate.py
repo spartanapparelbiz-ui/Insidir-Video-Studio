@@ -30,12 +30,12 @@ POSES = ["stand", "wave", "point", "pointleft", "pointup", "think", "shrug", "ch
 
 TEMPLATES = {
     "editorial-story": {
-        "name": "Editorial story (premium)",
-        "description": "Ten original kinetic finance scenes: dot figure, real document geometry, transaction codes, diagrams and SEC records.",
-        "best_for": "High-retention Insidir financial explainers with distinct imagery and restrained typography.",
+        "name": "Insidir: editorial finance",
+        "description": "Slower story-led SEC explainer with an Insidir dot-matrix narrator, original financial documents, source trails, no scene numbers.",
+        "best_for": "Black-and-ivory, precise financial explainers that explain one real concept per Reel.",
         "fields": ["headline", "icon", "pose"],
         "frame_format": "jpeg",
-        "prompt": "Write ten concise beats that form one clear true finance story. For a Form 4 explainer, the scene sequence is: hook, zoom, public filing, transaction categories, sales, awards/options, transaction codes, source, research context, and takeaway. Keep each headline 2-5 words. Provide 65-75 spoken words overall.",
+        "prompt": "Write eight connected short beats for a single true finance story. The Insidir dot character follows the evidence from headline, through public filings, categories and transaction codes, to SEC source links and a plain-language takeaway. Avoid unsupported claims. Use 68-82 words total with readable 2-5 word headings and a calmer pace. Do not add numbered labels or a corner watermark.",
     },
     "viral": {
         "name": "Viral cinematic",
