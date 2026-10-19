@@ -125,7 +125,7 @@ function scene(i: number, b: Beat): Node {
     case 5: {
       root.add(card('SEC FILING', 'ORIGINAL RECORD', 170, -265, 500, 190));
       root.add(line(170, -100, 5, 122, PAPER));
-      root.add(<Circle x={170} y=-32 size={23} fill={PAPER}/>);
+      root.add(<Circle x={170} y={-32} size={23} fill={PAPER}/>);
       root.add(card('PLAIN LANGUAGE', 'TRANSACTION CODES', 170, 114, 500, 190));
       root.add(dotPattern(170, 316, 8, 2, 31, 9));
       break;
