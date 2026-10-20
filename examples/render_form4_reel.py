@@ -21,13 +21,13 @@ from insidir_studio import compliance, project, render
 # A single slower narrative, not ten disconnected headline cards.
 # 7 deliberate scenes: viewers, executives, analysts, and the actual meaning of SEC transaction codes.
 STORYBOARD = [
-    ("A headline says an executive bought shares. Did they spend cash?", "WHAT REALLY HAPPENED?", "people"),
-    ("The public Form 4 is where you check the transaction.", "THE ORIGINAL RECORD", "document"),
-    ("Code P means an open-market purchase. Code A can mark a stock award.", "A PURCHASE OR AN AWARD?", "list"),
-    ("Those transactions are different. You need the code, not a headline.", "THE CODE CHANGES CONTEXT", "magnifier"),
-    ("Code M can identify an option exercise. That's another type of transaction.", "NOT EVERY EVENT IS A BUY", "chart"),
-    ("The executive, analyst, and everyday investor are reading the same public filing.", "ONE SOURCE. DIFFERENT READERS.", "people"),
-    ("Insidir separates those transaction types and links to the original SEC record.", "START WITH THE SOURCE", "link"),
+    ("A headline says an executive bought shares. But did they really?", "DID THEY REALLY BUY?", "news"),
+    ("The answer is in a public SEC Form 4. Look at the transaction code.", "CHECK THE FILING.", "filing"),
+    ("P is an open-market purchase. A can mean a stock award.", "P IS NOT A.", "cash"),
+    ("Same company, different transaction. The code tells you which.", "ONE LETTER CHANGES CONTEXT.", "search"),
+    ("M can mark an option exercise. That's not an open-market purchase.", "AND THEN THERE'S M.", "option"),
+    ("Executives, analysts, and investors can all check the same public filing.", "THREE READERS. ONE RECORD.", "people"),
+    ("Insidir organizes the transactions and links to the original SEC record.", "DON'T GUESS. CHECK THE SOURCE.", "link"),
 ]
 
 
@@ -38,7 +38,7 @@ def build_project():
             "mode": "animated",
             "template": "editorial-story",
             "topic": "What a public Form 4 filing actually shows",
-            "target_seconds": 32,
+            "target_seconds": 33,
             "audience": "Everyday people trying to understand financial filings",
             "angle": "Considered, personal, source-first financial research",
             "cta": "Read the public records at insidir.com",
