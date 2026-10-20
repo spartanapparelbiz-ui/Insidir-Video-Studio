@@ -1,0 +1,40 @@
+name: Wall Street Decoded Reel 02 voice
+on:
+  push:
+    branches: [chatgpt/wallstreetdecoded-reel02]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  narrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      INSIDIR_STUDIO_HOME: ${{ github.workspace }}/.local-studio
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Set up Kokoro voice engine
+      run: |
+        python -m pip install -r requirements.txt
+        python -m insidir_studio download-models
+    - name: Record split explainer
+      run: python examples/render_wallstreetdecoded_reel02.py
+    - name: Check audio and text alignment
+      run: |
+        python - <<'PY'
+        import json,wave
+        d=json.load(open("artifacts/timing.json"))
+        assert len(d["beats"])==7
+        with wave.open("artifacts/narration.wav","rb") as w:
+            print("WAV:",w.getnframes()/w.getframerate(),"seconds")
+        PY
+    - uses: actions/upload-artifact@v4
+      with:
+        name: wallstreetdecoded-reel02-narration
+        path: |
+          artifacts/narration.wav
+          artifacts/timing.json
+        retention-days: 14
