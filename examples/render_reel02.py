@@ -18,7 +18,7 @@ STORYBOARD=[
  ("Imagine this. One hundred million dollars comes in from sales.", "SALES: $100 MILLION", "cash"),
  ("But payroll, shipping, and other costs add up to one hundred and twenty million.", "COSTS: $120 MILLION", "chart"),
  ("That's a twenty million dollar loss.", "LOSS: $20 MILLION", "alert"),
- ("More sales don't automatically mean the company earns more.", "REVENUE IS NOT PROFIT.", "chart"),
+ ("More sales don't automatically mean the company earns more.", "MORE SALES IS NOT MORE EARNINGS.", "chart"),
  ("Before trusting a headline, check the income statement in the public filings.", "LOOK AT THE NUMBERS.", "document"),
  ("Insidir helps you research what's behind the headline. Know the numbers, not just the story.", "INSIDIR. GO DEEPER.", "link"),
 ]
