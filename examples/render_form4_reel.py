@@ -19,16 +19,15 @@ sys.path.insert(0, str(ROOT))
 from insidir_studio import compliance, project, render
 
 # A single slower narrative, not ten disconnected headline cards.
-# 8 distinct scenes; Dot the Insidir dot-figure follows the evidence.
+# 7 deliberate scenes: viewers, executives, analysts, and the actual meaning of SEC transaction codes.
 STORYBOARD = [
-    ("A headline says an insider traded. But what actually happened?", "HEADLINES MISS CONTEXT", "document"),
-    ("Meet Dot. Dot checks the public Form 4 instead.", "OPEN THE SOURCE", "form"),
-    ("One filing can show a purchase, sale, award, or option exercise.", "DIFFERENT TRANSACTIONS", "list"),
-    ("Those aren't the same thing. Transaction codes tell them apart.", "READ THE CODE", "tag"),
-    ("That's where context starts, not with a headline.", "CONTEXT MATTERS", "eye"),
-    ("Insidir separates the activity into plain language.", "LESS NOISE. MORE CLARITY.", "people"),
-    ("And links each transaction back to the original SEC filing.", "BACK TO THE SOURCE", "link"),
-    ("Follow the source. Understand the story. That's Insidir.", "THE RECORD COMES FIRST", "document"),
+    ("A headline says an executive bought shares. Did they spend cash?", "WHAT REALLY HAPPENED?", "people"),
+    ("The public Form 4 is where you check the transaction.", "THE ORIGINAL RECORD", "document"),
+    ("Code P means an open-market purchase. Code A can mark a stock award.", "A PURCHASE OR AN AWARD?", "list"),
+    ("Those transactions are different. You need the code, not a headline.", "THE CODE CHANGES CONTEXT", "magnifier"),
+    ("Code M can identify an option exercise. That's another type of transaction.", "NOT EVERY EVENT IS A BUY", "chart"),
+    ("The executive, analyst, and everyday investor are reading the same public filing.", "ONE SOURCE. DIFFERENT READERS.", "people"),
+    ("Insidir separates those transaction types and links to the original SEC record.", "START WITH THE SOURCE", "link"),
 ]
 
 
@@ -39,7 +38,7 @@ def build_project():
             "mode": "animated",
             "template": "editorial-story",
             "topic": "What a public Form 4 filing actually shows",
-            "target_seconds": 33,
+            "target_seconds": 32,
             "audience": "Everyday people trying to understand financial filings",
             "angle": "Considered, personal, source-first financial research",
             "cta": "Read the public records at insidir.com",
