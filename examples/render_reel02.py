@@ -40,13 +40,22 @@ def main():
  "sfx":False,"music_bed":False,"logo_overlay":False,"caption_words":3,
  "caption_highlight":"#FFFFFF","caption_size":0.8})
  p["script"]={
-  "title":"REVENUE IS NOT PROFIT",
+  "title":"REVENUE IS NOT WHAT IS LEFT",
   "facts_used":[],
   "beats":[{"id":f"b{i}","text":speech,"overlay":title,
             "visual":{"kind":"doodle","icon":ico,"pose":"explain"}}
           for i,(speech,title,ico) in enumerate(STORYBOARD,1)]
  }
- facts=compliance.load_facts()\n # This is explicitly a fictional arithmetic example, not a claim about a company.\n facts.setdefault("facts",[]).append({"id":"fictional_revenue_illustration","text":"Illustration only: revenue 100m minus expenses 120m is a loss of 20m.","numbers":["hundred","million","twenty","100","120","20"],"source":"Hypothetical arithmetic example created for this educational video; NOT sourced company data."})\n compliance.save_facts(facts)\n errors=[e for e in compliance.lint(p["script"],facts,[]) if e.get("level")=="error"]
+ facts=compliance.load_facts()
+ # Fictional arithmetic example, NOT a claim about any real public company.
+ facts.setdefault("facts",[]).append({
+     "id":"fictional_revenue_illustration",
+     "text":"Fictional illustration: 100 million in sales minus 120 million in expenses is a 20 million loss.",
+     "numbers":["hundred","million","twenty","100","120","20"],
+     "source":"Synthetic example prepared for this educational video. Not actual company financials."
+ })
+ compliance.save_facts(facts)
+ errors=[e for e in compliance.lint(p["script"],facts,[]) if e.get("level")=="error"]
  if errors: raise RuntimeError("Factual guard: "+json.dumps(errors))
  project.save(d,p)
  info=render.render(d,engine_name="kokoro")
