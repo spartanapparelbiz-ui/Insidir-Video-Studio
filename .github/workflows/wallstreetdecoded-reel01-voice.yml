@@ -1,0 +1,44 @@
+name: Wall Street Decoded Reel 01 — Voice
+on:
+  push:
+    branches: ['chatgpt/wallstreetdecoded-reel01']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  narrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      INSIDIR_STUDIO_HOME: ${{ github.workspace }}/.local-studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install free local AI voice
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Download Apache-licensed Kokoro model
+        run: python -m insidir_studio download-models
+      - name: Narrate and synchronize Wall Street Decoded Reel 01
+        run: python examples/render_wallstreetdecoded_reel01.py --destination artifacts
+      - name: Validate narration artifact
+        run: |
+          python - <<'PY'
+          import json,wave
+          d=json.load(open('artifacts/wallstreetdecoded-timing.json'))
+          with wave.open('artifacts/wallstreetdecoded-voice.wav','rb') as f:
+            seconds=f.getnframes()/f.getframerate()
+          assert len(d['beats'])==7
+          assert 20<=d['total']<=36
+          print('Voice seconds',seconds,'Video seconds',d['total'])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wallstreetdecoded-reel01-voice
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 14
