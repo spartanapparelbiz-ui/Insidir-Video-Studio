@@ -8,7 +8,7 @@ permissions:
 jobs:
   voice:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 25
     env:
       INSIDIR_STUDIO_HOME: ${{ github.workspace }}/.local-studio
     steps:
@@ -16,29 +16,27 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: motion/package-lock.json
-      - name: Install render dependencies
+      - name: Install only free Python narration dependencies
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg libass9
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-          cd motion && npm ci --no-audit --no-fund
-          npx playwright-core install --with-deps chromium
       - name: Download open-source voice model
         run: python -m insidir_studio download-models
-      - name: Produce aligned narration and original template sample
+      - name: Produce aligned narration for hand-animated Reel
         run: python examples/render_reel02.py --destination artifacts
-      - name: Inspect narration artifacts
+      - name: Verify timing and real WAV file
         run: |
           test -s artifacts/reel02-voice.wav
           test -s artifacts/reel02-timing.json
-          test -s artifacts/reel02-audio-reference.mp4
-          ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 artifacts/reel02-audio-reference.mp4
+          python - <<'PY'
+          import json,wave
+          with wave.open('artifacts/reel02-voice.wav','rb') as w:
+              d=w.getnframes()/w.getframerate()
+          data=json.load(open('artifacts/reel02-timing.json'))
+          assert 20 <= data['total'] <= 35
+          assert len(data['beats']) == 7
+          print("Voice",d,"s; Video",data['total'],"s")
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
