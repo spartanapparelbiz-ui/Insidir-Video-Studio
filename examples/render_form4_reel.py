@@ -85,6 +85,11 @@ def main():
     a.destination.mkdir(parents=True, exist_ok=True)
     out = a.destination / "insidir-form4-first-reel.mp4"
     shutil.copy2(outputs[-1], out)
+    # Preserve exact beat/word times for alternate hand-drawn vector edits.
+    # This lets a separate video render align each visual action to the real voice.
+    motion_data = d / "build" / "motion" / "data.json"
+    if motion_data.exists():
+        shutil.copy2(motion_data, a.destination / "voice-timings.json")
     (a.destination / "render-report.json").write_text(
         json.dumps(result, indent=2, default=str), encoding="utf-8"
     )
