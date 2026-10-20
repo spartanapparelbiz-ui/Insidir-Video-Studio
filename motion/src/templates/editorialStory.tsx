@@ -183,10 +183,13 @@ export function* editorialStory(view:View2D,data:RenderData):ThreadGenerator {
     const scene=incoming.content;
     scene.opacity(0);scene.y(20);scene.scale(0.97);
     view.add(scene);
-    // Calm handoff; no white flash, no fake film grain, no arbitrary scanlines.
-    yield* until(Math.max(0,b.start-0.16));
+    // Exit the old scene completely BEFORE the incoming headline appears.
+    // Never show two titles on the same frame; caption tracking stays independent.
+    yield* until(Math.max(0,b.start-0.58));
     if(previous) {
-      spawn(previous.opacity(0,0.52,easeInOutCubic));
+      yield* previous.opacity(0,0.54,easeInOutCubic);
+      previous.remove();
+      previous=null;
     }
     yield* until(b.start);
     for(const figure of incoming.people) {
@@ -195,7 +198,6 @@ export function* editorialStory(view:View2D,data:RenderData):ThreadGenerator {
     yield* all(scene.opacity(1,0.8,easeOutCubic),
       scene.y(0,0.82,easeOutCubic),
       scene.scale(1,0.9,easeOutCubic));
-    if(previous)previous.remove();
     previous=scene;
     // A quiet living composition instead of rapid wobbling animations.
     spawn(scene.scale(1.015,Math.max(1.1,b.end-b.start-1),easeInOutCubic));
