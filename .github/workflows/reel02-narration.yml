@@ -1,0 +1,48 @@
+name: Reel 02 — Studio Narration and Timing
+on:
+  push:
+    branches: ['chatgpt/insidirfinance-reel02']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  voice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      INSIDIR_STUDIO_HOME: ${{ github.workspace }}/.local-studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: motion/package-lock.json
+      - name: Install render dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg libass9
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          cd motion && npm ci --no-audit --no-fund
+          npx playwright-core install --with-deps chromium
+      - name: Download open-source voice model
+        run: python -m insidir_studio download-models
+      - name: Produce aligned narration and original template sample
+        run: python examples/render_reel02.py --destination artifacts
+      - name: Inspect narration artifacts
+        run: |
+          test -s artifacts/reel02-voice.wav
+          test -s artifacts/reel02-timing.json
+          test -s artifacts/reel02-audio-reference.mp4
+          ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 artifacts/reel02-audio-reference.mp4
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: insidirfinance-reel02-voice
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 7
