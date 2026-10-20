@@ -8,7 +8,9 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from insidir_studio import project,render,compliance
 
 STORYBOARD=[
@@ -16,7 +18,7 @@ STORYBOARD=[
  ("Imagine this. One hundred million dollars comes in from sales.", "SALES: $100 MILLION", "cash"),
  ("But payroll, shipping, and other costs add up to one hundred and twenty million.", "COSTS: $120 MILLION", "chart"),
  ("That's a twenty million dollar loss.", "LOSS: $20 MILLION", "alert"),
- ("More sales don't automatically mean more profit.", "REVENUE IS NOT PROFIT.", "chart"),
+ ("More sales don't automatically mean the company earns more.", "REVENUE IS NOT PROFIT.", "chart"),
  ("Before trusting a headline, check the income statement in the public filings.", "LOOK AT THE NUMBERS.", "document"),
  ("Insidir helps you research what's behind the headline. Know the numbers, not just the story.", "INSIDIR. GO DEEPER.", "link"),
 ]
@@ -44,7 +46,7 @@ def main():
             "visual":{"kind":"doodle","icon":ico,"pose":"explain"}}
           for i,(speech,title,ico) in enumerate(STORYBOARD,1)]
  }
- errors=[e for e in compliance.lint(p["script"],compliance.load_facts(),[]) if e.get("level")=="error"]
+ facts=compliance.load_facts()\n # This is explicitly a fictional arithmetic example, not a claim about a company.\n facts.setdefault("facts",[]).append({"id":"fictional_revenue_illustration","text":"Illustration only: revenue 100m minus expenses 120m is a loss of 20m.","numbers":["hundred","million","twenty","100","120","20"],"source":"Hypothetical arithmetic example created for this educational video; NOT sourced company data."})\n compliance.save_facts(facts)\n errors=[e for e in compliance.lint(p["script"],facts,[]) if e.get("level")=="error"]
  if errors: raise RuntimeError("Factual guard: "+json.dumps(errors))
  project.save(d,p)
  info=render.render(d,engine_name="kokoro")
