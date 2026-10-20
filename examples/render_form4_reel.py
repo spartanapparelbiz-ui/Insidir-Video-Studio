@@ -21,13 +21,13 @@ from insidir_studio import compliance, project, render
 # A single slower narrative, not ten disconnected headline cards.
 # 7 deliberate scenes: viewers, executives, analysts, and the actual meaning of SEC transaction codes.
 STORYBOARD = [
-    ("A headline says an executive bought shares. But did they really?", "DID THEY REALLY BUY?", "news"),
-    ("The answer is in a public SEC Form 4. Look at the transaction code.", "CHECK THE FILING.", "filing"),
-    ("P is an open-market purchase. A can mean a stock award.", "P IS NOT A.", "cash"),
-    ("Same company, different transaction. The code tells you which.", "ONE LETTER CHANGES CONTEXT.", "search"),
-    ("M can mark an option exercise. That's not an open-market purchase.", "AND THEN THERE'S M.", "option"),
-    ("Executives, analysts, and investors can all check the same public filing.", "THREE READERS. ONE RECORD.", "people"),
-    ("Insidir organizes the transactions and links to the original SEC record.", "DON'T GUESS. CHECK THE SOURCE.", "link"),
+    ("An executive acquired shares. So, did they actually buy them?", "DID THEY EVEN BUY?", "news"),
+    ("Sometimes they spend cash. That's a purchase.", "CASH PURCHASE", "cash"),
+    ("Sometimes the company grants them shares. That's an award.", "STOCK AWARD", "award"),
+    ("Or they use an existing stock option to acquire shares.", "OPTION EXERCISE", "option"),
+    ("Same headline. Three very different transactions.", "NOT THE SAME THING.", "question"),
+    ("The public SEC filing tells you which one happened.", "THE ORIGINAL FILING.", "filing"),
+    ("Insidir makes it easier to understand, and links to the original filing.", "KNOW WHAT ACTUALLY HAPPENED.", "link"),
 ]
 
 
@@ -38,9 +38,9 @@ def build_project():
             "mode": "animated",
             "template": "editorial-story",
             "topic": "What a public Form 4 filing actually shows",
-            "target_seconds": 33,
+            "target_seconds": 32,
             "audience": "Everyday people trying to understand financial filings",
-            "angle": "Considered, personal, source-first financial research",
+            "angle": "For @insidirfinance, explain cash purchases, stock grants and option exercises with icons.",
             "cta": "Read the public records at insidir.com",
         },
     )
@@ -50,7 +50,7 @@ def build_project():
     p["style"].update({"quality": "standard", "captions": "auto", "end_card": True,
                        "sfx": True, "music_bed": True, "caption_highlight": "#FFFFFF", "caption_size": 0.80, "caption_words": 3, "logo_overlay": False})
     p["script"] = {
-        "title": "THE HEADLINE IS NOT THE FILING",
+        "title": "DID THEY ACTUALLY BUY?",
         "facts_used": ["form4_public", "purchases_apart", "links_to_filing"],
         "beats": [
             {
