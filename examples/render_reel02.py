@@ -11,7 +11,7 @@ import shutil
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from insidir_studio import project,render,compliance
+from insidir_studio import project,tts,compliance
 
 STORYBOARD=[
  ("How can a company sell a hundred million dollars of products, and still lose money?", "ONE HUNDRED MILLION IN.", "question"),
@@ -58,16 +58,25 @@ def main():
  errors=[e for e in compliance.lint(p["script"],facts,[]) if e.get("level")=="error"]
  if errors: raise RuntimeError("Factual guard: "+json.dumps(errors))
  project.save(d,p)
- info=render.render(d,engine_name="kokoro")
+ # Generate only natural narration and frame-accurate beat/word timings here.
+ # The final 2D animated Reel is rendered and quality-checked separately.
+ build=d/"build"
+ build.mkdir(parents=True,exist_ok=True)
+ voice=tts.valid_voice(p["voice"]["voice"])
+ engine=tts.get_engine("kokoro")
+ nar=tts.fit_narration(p["script"]["beats"],voice,p["voice"]["speed"],engine,build,extra_seconds=1.4)
+ duration=round(nar.duration+1.4,3)
+ if duration>35.05 or duration<20: raise RuntimeError(f"Narration duration out of range: {duration}")
+ beats=[{"id":b["id"],"start":b["start"],"end":b["end"]} for b in nar.beats]
+ words=[{"text":w.text,"start":w.start,"end":w.end,"beat":w.beat} for w in nar.words]
+ timing={"beats":beats,"words":words,"total":duration,"end_card_start":round(nar.duration,3)}
  args.destination.mkdir(parents=True,exist_ok=True)
- wav=d/"build"/"narration.wav"
- timing=d/"build"/"motion"/"data.json"
- videos=list((d/"out").glob("*.mp4"))
- if not (wav.exists() and timing.exists() and videos):
-  raise RuntimeError(f"Voice / timing / MP4 missing: {wav.exists()}, {timing.exists()}, {bool(videos)}")
- shutil.copy2(wav,args.destination/"reel02-voice.wav")
- shutil.copy2(timing,args.destination/"reel02-timing.json")
- shutil.copy2(sorted(videos)[-1],args.destination/"reel02-audio-reference.mp4")
- (args.destination/"render-report.json").write_text(json.dumps(info,indent=2,default=str),encoding="utf8")
- print("Voice/Timestamps ready",info)
+ shutil.copy2(Path(nar.wav),args.destination/"reel02-voice.wav")
+ (args.destination/"reel02-timing.json").write_text(json.dumps(timing,indent=2),encoding="utf8")
+ (args.destination/"render-report.json").write_text(json.dumps({
+  "duration":duration,"narration_seconds":nar.duration,
+  "voice":voice,"source":"Illustrative arithmetic only, not company data",
+  "beats":len(beats),"words":len(words)},indent=2),encoding="utf8")
+ print("Voice, timing, and report ready",timing["total"],"seconds",flush=True)
+
 if __name__=="__main__":main()
