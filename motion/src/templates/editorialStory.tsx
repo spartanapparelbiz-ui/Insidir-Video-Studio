@@ -1,205 +1,213 @@
-// Insidir editorial explainer: one original story, told through the dots of the
-// authentic Insidir "i", real SEC Form 4 concepts, and clean financial information.
-// No sequence counters, fake dashboards, persistent logos, or generic HUD/watermarks.
+// Insidir — the difference between an insider purchase and an award.
+// Editorial motion graphic: multiple characters made of the same twelve-dot
+// geometry as the Insidir "i" icon, meaningful scenes, purposeful illustrations.
+// No decorative grids, scene counters, stock tickers, or persistent watermark.
 import {Circle, Node, Rect, Txt, type View2D} from '@motion-canvas/2d';
 import {all, easeInOutCubic, easeOutCubic, spawn, type ThreadGenerator} from '@motion-canvas/core';
-import type {Beat, RenderData} from '../lib/data';
-import {makeFigure, figureIn, setPose} from '../lib/figure';
+import type {RenderData} from '../lib/data';
+import {makeFigure, setPose, figureIn, type DotFigure} from '../lib/figure';
 import {until} from '../lib/timing';
 import {F} from '../lib/fonts';
 
-const PAPER = '#e9e4da';
-const INK = '#0c0c0b';
-const MUTED = '#85817b';
-const HAIRLINE = '#292824';
-const DIM = '#b3aea6';
-const COL = 1080, HEIGHT = 1920;
+const BG = '#0c0c0b';
+const IVORY = '#e9e4da';
+const SOFT = '#99958e';
+const LINE = '#44423e';
+const FIELD = '#181817';
 
-function text(value: string, x: number, y: number, size = 60, color = PAPER, width = 840, mono = false): Txt {
-  return (<Txt text={value} x={x} y={y} fontFamily={mono ? 'monospace' : F.head}
-    fontWeight={mono ? 500 : 760} fontSize={size} lineHeight={size * 1.12}
-    fill={color} letterSpacing={mono ? 1.8 : -1.9}
-    textWrap width={width} textAlign="center" />) as Txt;
+function txt(t:string, x:number,y:number,size:number=53,fill=IVORY,width=900):Txt {
+  return (<Txt x={x} y={y} width={width} text={t} textWrap textAlign="center"
+     fontFamily={F.head} fontWeight={750} fontSize={size} fill={fill}
+     letterSpacing={-1.5} lineHeight={size*1.14}/>) as Txt;
 }
-
-function line(x: number, y: number, w: number, h = 3, color = HAIRLINE): Rect {
-  return (<Rect x={x} y={y} width={w} height={h} fill={color} />) as Rect;
+function mono(t:string,x:number,y:number,size:number=27,fill=SOFT,width=900):Txt {
+  return (<Txt x={x} y={y} width={width} text={t} textAlign="center" textWrap
+    fontFamily="monospace" fontSize={size} fontWeight={500} letterSpacing={1.3} fill={fill}/>) as Txt;
 }
-
-function dotPattern(x: number, y: number, cols = 5, rows = 4, spacing = 28, size = 8): Node {
-  const root = (<Node x={x} y={y} />) as Node;
-  for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++)
-    root.add(<Circle x={(c - (cols - 1) / 2) * spacing}
-      y={(r - (rows - 1) / 2) * spacing}
-      size={size} fill={PAPER} opacity={0.22 + ((c + r) % 3) * 0.14} />);
-  return root;
+function bar(x:number,y:number,w:number,h:number=3,color=LINE):Rect {
+  return (<Rect x={x} y={y} width={w} height={h} fill={color}/>) as Rect;
 }
-
-function card(title: string, detail: string, x: number, y: number, w = 420, h = 205): Node {
+function particles(x:number,y:number,n:number=7,r:number=15):Node {
+  const nroot = (<Node x={x} y={y}/>) as Node;
+  for(let i=0;i<n;i++) nroot.add(<Circle x={i*48-(n-1)*24} size={r} fill={IVORY} />);
+  return nroot;
+}
+function panel(x:number,y:number,w:number,h:number):Node {
   return (<Node x={x} y={y}>
-    <Rect width={w} height={h} radius={11} fill="#121211" stroke="#49463f" lineWidth={2.8}/>
-    <Rect width={9} height={h - 62} x={-w / 2 + 25} fill={PAPER} radius={4}/>
-    {text(title, 14, -32, 55, PAPER, w - 100)}
-    {text(detail, 12, 43, 24, MUTED, w - 100, true)}
+    <Rect width={w} height={h} radius={8} fill={FIELD} stroke={LINE} lineWidth={3}/>
   </Node>) as Node;
 }
-
-// A designed illustration of a Form 4, never a forged real SEC document.
-function form4(x: number, y: number, scale = 1): Node {
-  const root = (<Node x={x} y={y} scale={scale}>
-    <Rect width={590} height={750} fill={PAPER} radius={8}
-      shadowColor="#000000" shadowBlur={52} shadowOffsetY={20}/>
-    <Txt text="UNITED STATES SEC" x={0} y={-326} fontSize={24}
-      fontFamily="Georgia" fill={INK} fontWeight={700}/>
-    {line(0, -298, 480, 3, '#9b958b')}
-    <Txt text="FORM 4" fontFamily={F.head} fontWeight={800}
-      fontSize={94} y={-225} fill={INK}/>
-    <Txt text="STATEMENT OF CHANGES IN BENEFICIAL OWNERSHIP"
-      fontFamily={F.head} fontSize={22} fontWeight={600} textAlign="center"
-      width={460} textWrap y={-154} fill="#4a4742"/>
-    {line(0, -94, 480, 4, '#9b958b')}
-    {text("REPORTING PERSON", 0, -33, 28, '#59554f', 430, true)}
-    {line(0, 12, 460, 5, '#bfbab3')}
-    {text("TRANSACTION DETAILS", 0, 65, 28, '#59554f', 430, true)}
-    {line(0, 115, 460, 4, '#bfbab3')}
-    {line(0, 172, 460, 4, '#bfbab3')}
-    {line(0, 229, 460, 4, '#bfbab3')}
-    <Rect width={408} height={59} y={171} radius={6}
-      stroke={INK} lineWidth={4} fill="rgba(12,12,11,0.025)"/>
-    <Circle x={-195} y={171} size={18} fill={INK}/>
-    {line(0, 293, 460, 4, '#bfbab3')}
+function character(role:'viewer'|'executive'|'researcher',x:number,y:number,unit:number=6):{node:Node,figure:DotFigure} {
+  const [body,figure] = makeFigure(IVORY,unit,0,0);
+  const root = (<Node x={x} y={y}/>) as Node;
+  root.add(body);
+  // Accessories are geometry built from the same circular dot vocabulary.
+  // Roles are distinguishable even without their short labels.
+  if (role==='executive') {
+    root.add(<Node>
+      <Circle x={-unit*2.5} y={-unit*16} size={unit*2.5} fill={SOFT}/>
+      <Circle x={unit*2.5} y={-unit*16} size={unit*2.5} fill={SOFT}/>
+      <Circle x={0} y={-unit*14} size={unit*2.4} fill={SOFT}/>
+      <Rect x={unit*24} y={-unit*5} width={unit*15} height={unit*11}
+        radius={unit*1.4} stroke={IVORY} lineWidth={unit*0.7} fill={BG}/>
+      <Rect x={unit*24} y={-unit*11.5} width={unit*6} height={unit*2}
+        radius={unit} stroke={IVORY} lineWidth={unit*0.5}/>
+    </Node>);
+  }
+  if (role==='researcher') {
+    root.add(<Node>
+      <Circle x={-unit*5} y={-unit*36} size={unit*7} stroke={IVORY} lineWidth={unit*1.2}/>
+      <Circle x={unit*5} y={-unit*36} size={unit*7} stroke={IVORY} lineWidth={unit*1.2}/>
+      <Circle x={0} y={-unit*36} size={unit*2.2} fill={IVORY}/>
+    </Node>);
+  }
+  return {node:root,figure};
+}
+function addPerson(scene:Node,role:'viewer'|'executive'|'researcher',x:number,y:number,unit:number,label?:string):DotFigure {
+  const p = character(role,x,y,unit); scene.add(p.node);
+  if(label) scene.add(mono(label,x,y+78,26,SOFT,290));
+  return p.figure;
+}
+function document(x:number,y:number,s:number=1):Node {
+  return (<Node x={x} y={y} scale={s}>
+    <Rect width={540} height={625} radius={9} fill={IVORY}/>
+    {txt('FORM 4',0,-226,90,BG,480)}
+    {bar(0,-164,410,3,'#a9a59d')}
+    {mono('PUBLIC OWNERSHIP RECORD',0,-125,21,'#514d46',490)}
+    {bar(0,-68,418,4,'#b4afa6')}
+    {bar(0,-7,418,4,'#b4afa6')}
+    {bar(0,54,418,4,'#b4afa6')}
+    {bar(0,115,418,4,'#b4afa6')}
+    {bar(0,176,418,4,'#b4afa6')}
+    <Rect y={54} width={408} height={52} radius={3}
+      stroke={BG} lineWidth={3} fill="rgba(12,12,11,0.03)" />
   </Node>) as Node;
-  return root;
+}
+function headline(scene:Node,headline:string) {
+  scene.add(txt(headline,0,-655,headline.length>27?75:91,IVORY,940));
 }
 
-function scene(i: number, b: Beat): Node {
-  const root = (<Node />) as Node;
-  const title = b.headline || b.text;
-  root.add(text(title, 0, -605, title.length > 27 ? 78 : 100, PAPER, 940));
-  // A quiet technical rule, only inside the current scene—not a top-left watermark.
-  root.add(line(0, -468, 840, 2, '#403e39'));
-  switch (i % 8) {
+// Return the important figures so their poses are part of the STORY,
+// not a watermark bouncing in the corner through every clip.
+function makeScene(i:number,heading:string):{content:Node,people:DotFigure[]} {
+  const root=(<Node/>) as Node;
+  const people:DotFigure[]=[];
+  headline(root,heading);
+  switch(i){
     case 0: {
-      root.add(card('INSIDER ACTIVITY', 'A HEADLINE', 155, -80, 545, 238));
-      root.add(dotPattern(165, 238, 8, 3, 37, 12));
-      root.add(text('One line rarely tells the whole story.', 110, 376, 31, DIM, 780));
+      // Viewer encounters a provocative headline, shown explicitly as an example.
+      people.push(addPerson(root,'viewer',-285,220,7.5,'YOU'));
+      const h=panel(140,-110,650,280);root.add(h);
+      h.add(txt('INSIDER ACTIVITY',0,-43,69,IVORY,590));
+      h.add(mono('HEADLINE ≠ COMPLETE RECORD',0,66,22,SOFT,580));
+      root.add(bar(55,175,300,4,LINE));root.add(particles(165,258,5,15));
       break;
     }
     case 1: {
-      root.add(form4(170, -26, 0.81));
-      root.add(<Circle x={242} y={100} size={205} stroke={PAPER} lineWidth={10}
-        fill="rgba(233,228,218,0.09)"/>);
-      root.add(<Rect x={322} y={193} width={156} height={15}
-        fill={PAPER} radius={8} rotation={42}/>);
-      root.add(text('PUBLIC SEC RECORD', -30, 374, 28, DIM, 580, true));
+      // Two real roles appear rather than a single generic mascot.
+      people.push(addPerson(root,'viewer',-330,202,5.8,'YOU'));
+      people.push(addPerson(root,'executive',300,202,5.4,'EXECUTIVE'));
+      root.add(document(0,-185,0.68));
+      root.add(bar(0,100,280,3,SOFT));
+      root.add(mono('ORIGINAL SEC DISCLOSURE',0,338,26,SOFT,600));
       break;
     }
     case 2: {
-      root.add(card('PURCHASE', 'OPEN-MARKET', -164, -146, 350, 175));
-      root.add(card('SALE', 'OPEN-MARKET', 238, -146, 350, 175));
-      root.add(card('AWARD', 'SHARE GRANT', -164, 114, 350, 175));
-      root.add(card('EXERCISE', 'OPTIONS', 238, 114, 350, 175));
-      root.add(dotPattern(175, 340, 8, 2, 27, 10));
+      // Visually compare cash purchase against issued award:
+      // both concern shares, but their meaning is different.
+      const left=panel(-220,-35,420,320), right=panel(225,-35,420,320);
+      root.add(left);root.add(right);
+      left.add(txt('P',0,-48,154,IVORY,380));left.add(mono('PURCHASE',0,106,27,SOFT,360));
+      right.add(txt('A',0,-48,154,IVORY,380));right.add(mono('AWARD',0,106,27,SOFT,360));
+      root.add(mono('THE SAME THING?',0,254,31,SOFT,780));
+      root.add(txt('NO.',0,352,79,IVORY,780));
       break;
     }
     case 3: {
-      const codes = [['P', 'PURCHASE'], ['S', 'SALE'], ['A', 'AWARD'], ['M', 'EXERCISE']];
-      codes.forEach(([letter, label], j) => {
-        const x = -264 + j * 178;
-        root.add(<Rect x={x} y={-38} width={145} height={210} radius={11}
-          stroke={j === 0 ? PAPER : '#514d46'}
-          fill={j === 0 ? PAPER : '#151513'} lineWidth={3.5}/>);
-        root.add(text(letter, x, -56, 117, j === 0 ? INK : PAPER, 130));
-        root.add(text(label, x, 88, 17, DIM, 158, true));
-      });
-      root.add(text('SAME FILING. DIFFERENT MEANING.', 0, 280, 34, PAPER, 830));
+      // An independent analyst checks the transaction code, not a price chart.
+      people.push(addPerson(root,'researcher',-300,170,6.5,'RESEARCHER'));
+      root.add(document(163,-100,0.68));
+      root.add(<Circle x={242} y={-45} size={180} stroke={BG}
+        lineWidth={13} fill="rgba(233,228,218,0.14)"/>);
+      root.add(<Circle x={242} y={-45} size={188} stroke={IVORY}
+        lineWidth={8} fill="rgba(0,0,0,0)"/>);
+      root.add(<Rect x={319} y={34} width={130} height={15}
+        rotation={43} radius={7} fill={IVORY}/>);
+      root.add(mono('LOOK AT THE CODE',153,334,29,SOFT,570));
       break;
     }
     case 4: {
-      root.add(card('THE HEADLINE', 'SHORT VERSION', -150, -150, 430, 230));
-      root.add(line(94, 60, 305, 3, '#57534e'));
-      root.add(<Circle x={260} y={60} size={23} fill={PAPER}/>);
-      root.add(card('THE FILING', 'TRANSACTION CONTEXT', 170, 225, 490, 225));
+      // Option exercises are a separate category, illustrated by a route.
+      root.add(txt('M',-230,-80,206,IVORY,280));
+      root.add(mono('OPTION EXERCISE',-215,114,27,SOFT,400));
+      root.add(bar(125,-68,335,5,SOFT));
+      root.add(<Circle x={294} y={-68} size={30} fill={IVORY}/>);
+      root.add(<Rect x={292} y={92} width={280} height={234}
+        stroke={LINE} fill={FIELD} lineWidth={3} radius={10}/>);
+      root.add(particles(292,92,4,30));
+      root.add(mono('A DIFFERENT EVENT',175,329,26,SOFT,610));
       break;
     }
     case 5: {
-      root.add(card('SEC FILING', 'ORIGINAL RECORD', 170, -265, 500, 190));
-      root.add(line(170, -100, 5, 122, PAPER));
-      root.add(<Circle x={170} y={-32} size={23} fill={PAPER}/>);
-      root.add(card('PLAIN LANGUAGE', 'TRANSACTION CODES', 170, 114, 500, 190));
-      root.add(dotPattern(170, 316, 8, 2, 31, 9));
-      break;
-    }
-    case 6: {
-      root.add(form4(153, -85, 0.74));
-      root.add(<Rect x={205} y={130} width={342} height={83} fill={INK}
-        stroke={PAPER} lineWidth={5} radius={6}/>);
-      root.add(text('OPEN SOURCE', 205, 132, 37, PAPER, 304, true));
-      root.add(text('SEC / EDGAR', 205, 354, 33, DIM, 500, true));
+      // Three different characters, one shared public source. Distinct roles
+      // and clear composition make this a little story instead of a card reel.
+      people.push(addPerson(root,'viewer',-322,208,4.7,'YOU'));
+      people.push(addPerson(root,'executive',0,208,4.7,'EXECUTIVE'));
+      people.push(addPerson(root,'researcher',321,208,4.7,'ANALYST'));
+      root.add(bar(0,-70,695,3,SOFT));
+      root.add(document(0,-233,0.48));
+      root.add(mono('A PUBLIC RECORD. NOT A SIGNAL TO TRADE.',0,358,25,SOFT,880));
       break;
     }
     default: {
-      root.add(form4(173, -68, 0.67));
-      root.add(dotPattern(172, 305, 10, 2, 28, 9));
-      root.add(text('Facts before interpretations.', 145, 403, 36, PAPER, 720));
+      // Ending shot: one very simple chain from information to its source.
+      root.add(mono('INSIDIR',0,-352,44,IVORY,720));
+      root.add(txt('Transaction context',0,-190,66,IVORY,900));
+      root.add(bar(0,-72,540,3,SOFT));
+      root.add(txt('Original SEC filing',0,32,66,IVORY,900));
+      root.add(particles(0,203,7,20));
+      root.add(mono('START WITH THE SOURCE',0,358,29,SOFT,870));
       break;
     }
   }
-  return root;
+  return {content:root,people};
 }
 
-function grid(view: View2D) {
-  view.fill(INK);
-  view.add(<Rect width={COL} height={HEIGHT} fill={INK}/>);
-  const g = (<Node opacity={0.45} />) as Node;
-  for (let x = -540; x <= 540; x += 108) g.add(line(x, 0, 1.2, HEIGHT, '#1c1c1b'));
-  for (let y = -960; y <= 960; y += 108) g.add(line(0, y, COL, 1.2, '#1c1c1b'));
-  view.add(g);
-  view.add(line(0, -812, 888, 2, '#33312d'));
-}
-
-export function* editorialStory(view: View2D, data: RenderData): ThreadGenerator {
-  grid(view);
-  // One continuing protagonist, reused across the whole video, built by the
-  // same twelve dot positions and sizes as the actual Insidir favicon figure.
-  const [avatar, dot] = makeFigure(PAPER, 6.4, -336, 190);
-  view.add(avatar);
-  spawn(figureIn(dot, 0.9));
-  let previous: Node | null = null;
-  for (const [i, beat] of data.beats.entries()) {
-    if (data.end_card_start !== null && beat.start >= data.end_card_start) break;
-    yield* until(Math.max(0, beat.start - 0.40));
-    if (previous) {
-      yield* previous.opacity(0, 0.32, easeInOutCubic);
-      previous.remove();
+export function* editorialStory(view:View2D,data:RenderData):ThreadGenerator {
+  view.fill(BG);
+  view.add(<Rect width={1080} height={1920} fill={BG}/>);
+  let previous:Node|null=null;
+  for(const [i,b] of data.beats.entries()) {
+    if(data.end_card_start!==null && b.start>=data.end_card_start) break;
+    const incoming=makeScene(i,b.headline);
+    const scene=incoming.content;
+    scene.opacity(0);scene.y(20);scene.scale(0.97);
+    view.add(scene);
+    // Calm handoff; no white flash, no fake film grain, no arbitrary scanlines.
+    yield* until(Math.max(0,b.start-0.16));
+    if(previous) {
+      spawn(previous.opacity(0,0.52,easeInOutCubic));
     }
-    yield* until(beat.start);
-    const panel = scene(i, beat);
-    panel.opacity(0);
-    panel.y(28);
-    panel.scale(0.975);
-    view.add(panel);
-    // No jump-cuts or white flashes. The information quietly changes while Dot
-    // follows the primary filing from headline to transaction code to source.
-    spawn(setPose(dot, ['think','point','explain','point','shrug','explain','pointup','cheer'][i % 8], 0.7));
-    spawn(dot.root().x([-336, -340, -360, -325, -350, -320, -335, -315][i % 8], 0.8, easeInOutCubic));
-    yield* all(
-      panel.opacity(1, 0.64, easeOutCubic),
-      panel.y(0, 0.72, easeOutCubic),
-      panel.scale(1, 0.88, easeOutCubic),
-    );
-    previous = panel;
+    yield* until(b.start);
+    for(const figure of incoming.people) {
+      spawn(setPose(figure,['think','explain','point','point','explain','shrug','cheer'][i%7],0.65));
+    }
+    yield* all(scene.opacity(1,0.8,easeOutCubic),
+      scene.y(0,0.82,easeOutCubic),
+      scene.scale(1,0.9,easeOutCubic));
+    if(previous)previous.remove();
+    previous=scene;
+    // A quiet living composition instead of rapid wobbling animations.
+    spawn(scene.scale(1.015,Math.max(1.1,b.end-b.start-1),easeInOutCubic));
   }
-  if (data.end_card_start !== null) {
-    yield* until(Math.max(0, data.end_card_start - 0.44));
-    if (previous) {
-      yield* previous.opacity(0, 0.4);
-      previous.remove();
-    }
-    // Native end card (with insidir. + URL) is added by the existing FFmpeg
-    // composer. The only persistent icon is Dot, not a watermark.
-    yield* all(dot.root().position([0, -405], 0.75, easeInOutCubic), dot.root().scale(0.89, 0.75));
-    yield* setPose(dot, 'stand', 0.55);
+  if(data.end_card_start!==null) {
+    yield* until(data.end_card_start);
+    if(previous){yield* previous.opacity(0,0.45);previous.remove();}
+    // Real Insidir end branding is added downstream by captions/end-card.
+    const [mark,fig]=makeFigure(IVORY,10,0,-360);
+    view.add(mark);
+    yield* figureIn(fig,0.7);
+    yield* setPose(fig,'stand',0.45);
   }
   yield* until(data.total);
 }
