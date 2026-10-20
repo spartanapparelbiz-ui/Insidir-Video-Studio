@@ -161,7 +161,7 @@ function makeScene(i:number,heading:string):{content:Node,people:DotFigure[],ico
       root.add(<Circle x={294} y={-68} size={30} fill={IVORY}/>);
       root.add(<Rect x={292} y={92} width={280} height={234}
         stroke={LINE} fill={FIELD} lineWidth={3} radius={10}/>);
-      root.add(particles(292,92,4,30));
+      // The shares glyph takes this space; don't stack dots on top of it.
       root.add(mono('A DIFFERENT EVENT',175,329,26,SOFT,610));
       stamp('option',-229,-305,119);
       stamp('shares',292,92,125);
@@ -189,9 +189,10 @@ function makeScene(i:number,heading:string):{content:Node,people:DotFigure[],ico
       root.add(bar(0,-72,540,3,SOFT));
       root.add(txt('Original SEC filing',0,32,66,IVORY,900));
       root.add(mono('START WITH THE SOURCE',0,358,29,SOFT,870));
-      stamp('code',-317,-198,108);
-      stamp('link',317,-10,124);
-      stamp('source',0,226,120);
+      // A dedicated icon row below the final message avoids text collisions.
+      stamp('code',-287,215,103);
+      stamp('link',0,215,103);
+      stamp('source',287,215,103);
       break;
     }
   }
