@@ -3,11 +3,12 @@
 // geometry as the Insidir "i" icon, meaningful scenes, purposeful illustrations.
 // No decorative grids, scene counters, stock tickers, or persistent watermark.
 import {Circle, Node, Rect, Txt, type View2D} from '@motion-canvas/2d';
-import {all, easeInOutCubic, easeOutCubic, spawn, type ThreadGenerator} from '@motion-canvas/core';
+import {all, easeInOutCubic, easeOutCubic, easeOutBack, sequence, spawn, type ThreadGenerator} from '@motion-canvas/core';
 import type {RenderData} from '../lib/data';
 import {makeFigure, setPose, figureIn, type DotFigure} from '../lib/figure';
 import {until} from '../lib/timing';
 import {F} from '../lib/fonts';
+import {financeGlyph} from '../lib/financeGlyphs';
 
 const BG = '#0c0c0b';
 const IVORY = '#e9e4da';
@@ -89,9 +90,15 @@ function headline(scene:Node,headline:string) {
 
 // Return the important figures so their poses are part of the STORY,
 // not a watermark bouncing in the corner through every clip.
-function makeScene(i:number,heading:string):{content:Node,people:DotFigure[]} {
+function makeScene(i:number,heading:string):{content:Node,people:DotFigure[],icons:Node[]} {
   const root=(<Node/>) as Node;
   const people:DotFigure[]=[];
+  const icons:Node[]=[];
+  const stamp=(kind:Parameters<typeof financeGlyph>[0],x:number,y:number,size=120) => {
+    const g=financeGlyph(kind,x,y,size);
+    g.opacity(0);g.scale(0.72);
+    root.add(g);icons.push(g);
+  };
   headline(root,heading);
   switch(i){
     case 0: {
@@ -100,7 +107,10 @@ function makeScene(i:number,heading:string):{content:Node,people:DotFigure[]} {
       const h=panel(140,-110,650,280);root.add(h);
       h.add(txt('INSIDER ACTIVITY',0,-43,69,IVORY,590));
       h.add(mono('HEADLINE ≠ COMPLETE RECORD',0,66,22,SOFT,580));
-      root.add(bar(55,175,300,4,LINE));root.add(particles(165,258,5,15));
+      root.add(bar(55,175,300,4,LINE));
+      stamp('question',-337,-252,178);
+      stamp('news',363,-315,94);
+      stamp('alert',263,220,94);
       break;
     }
     case 1: {
@@ -110,6 +120,9 @@ function makeScene(i:number,heading:string):{content:Node,people:DotFigure[]} {
       root.add(document(0,-185,0.68));
       root.add(bar(0,100,280,3,SOFT));
       root.add(mono('ORIGINAL SEC DISCLOSURE',0,338,26,SOFT,600));
+      stamp('sec',-344,-282,113);
+      stamp('search',345,-281,111);
+      stamp('link',0,205,93);
       break;
     }
     case 2: {
@@ -121,6 +134,8 @@ function makeScene(i:number,heading:string):{content:Node,people:DotFigure[]} {
       right.add(txt('A',0,-48,154,IVORY,380));right.add(mono('AWARD',0,106,27,SOFT,360));
       root.add(mono('THE SAME THING?',0,254,31,SOFT,780));
       root.add(txt('NO.',0,352,79,IVORY,780));
+      stamp('cash',-224,-277,111);
+      stamp('award',228,-277,111);
       break;
     }
     case 3: {
@@ -134,6 +149,8 @@ function makeScene(i:number,heading:string):{content:Node,people:DotFigure[]} {
       root.add(<Rect x={319} y={34} width={130} height={15}
         rotation={43} radius={7} fill={IVORY}/>);
       root.add(mono('LOOK AT THE CODE',153,334,29,SOFT,570));
+      stamp('code',-170,-309,145);
+      stamp('search',340,175,107);
       break;
     }
     case 4: {
@@ -146,6 +163,9 @@ function makeScene(i:number,heading:string):{content:Node,people:DotFigure[]} {
         stroke={LINE} fill={FIELD} lineWidth={3} radius={10}/>);
       root.add(particles(292,92,4,30));
       root.add(mono('A DIFFERENT EVENT',175,329,26,SOFT,610));
+      stamp('option',-229,-305,119);
+      stamp('shares',292,92,125);
+      stamp('trade',-100,210,89);
       break;
     }
     case 5: {
@@ -157,6 +177,9 @@ function makeScene(i:number,heading:string):{content:Node,people:DotFigure[]} {
       root.add(bar(0,-70,695,3,SOFT));
       root.add(document(0,-233,0.48));
       root.add(mono('A PUBLIC RECORD. NOT A SIGNAL TO TRADE.',0,358,25,SOFT,880));
+      stamp('news',-334,-225,103);
+      stamp('sec',0,-415,92);
+      stamp('search',337,-225,103);
       break;
     }
     default: {
@@ -165,12 +188,14 @@ function makeScene(i:number,heading:string):{content:Node,people:DotFigure[]} {
       root.add(txt('Transaction context',0,-190,66,IVORY,900));
       root.add(bar(0,-72,540,3,SOFT));
       root.add(txt('Original SEC filing',0,32,66,IVORY,900));
-      root.add(particles(0,203,7,20));
       root.add(mono('START WITH THE SOURCE',0,358,29,SOFT,870));
+      stamp('code',-317,-198,108);
+      stamp('link',317,-10,124);
+      stamp('source',0,226,120);
       break;
     }
   }
-  return {content:root,people};
+  return {content:root,people,icons};
 }
 
 export function* editorialStory(view:View2D,data:RenderData):ThreadGenerator {
@@ -195,6 +220,11 @@ export function* editorialStory(view:View2D,data:RenderData):ThreadGenerator {
     for(const figure of incoming.people) {
       spawn(setPose(figure,['think','explain','point','point','explain','shrug','cheer'][i%7],0.65));
     }
+    // Contextual icons reveal sequentially, giving each graphic a reason
+    // to appear rather than filling the frame with decoration.
+    spawn(sequence(0.22, ...incoming.icons.map(icon =>
+      all(icon.opacity(1,0.36,easeOutCubic),icon.scale(1,0.52,easeOutBack))
+    )));
     yield* all(scene.opacity(1,0.8,easeOutCubic),
       scene.y(0,0.82,easeOutCubic),
       scene.scale(1,0.9,easeOutCubic));
