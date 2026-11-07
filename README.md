@@ -50,6 +50,8 @@ There are no paid APIs, subscriptions, credits, credit cards or third-party wate
 
    It ends with a self-check, where every line should say ok or ready, and adds a desktop shortcut.
 4. Double-click **`start.bat`** (or the **Insidir Video Studio** desktop shortcut). A console window opens and your browser goes to **http://127.0.0.1:7860**. Keep the console window open while you work; close it (or press Ctrl+C) to stop the studio.
+
+   **One click does everything.** `start.bat` runs the setup by itself the first time (so you can skip step 3), and if the studio is already open it just brings it back up in your browser instead of starting a second copy.
 5. To check the setup at any time, open a terminal in the folder and run `.venv\Scripts\python -m insidir_studio doctor`.
 
 To update later, download the new ZIP (or `git pull`) into the same folder and run `install.bat` again. Your projects live in `%USERPROFILE%\InsidirStudio` and are kept.
