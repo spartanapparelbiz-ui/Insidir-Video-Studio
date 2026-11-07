@@ -1,0 +1,194 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Insidir carousel</title>
+<!-- Topic: Elon Musk's $1B open-market TSLA purchase. Every figure is from the SEC Form 4
+     filed 2025-09-15 (accession 0001104659-25-089693) unless a slide cites another source. -->
+<style>
+  @font-face { font-family: "Jakarta"; src: url("../brand/PlusJakartaSans.woff2") format("woff2"); font-weight: 200 800; }
+  @font-face { font-family: "JBM"; src: url("../../insidir_studio/fonts/JetBrainsMono-Medium.ttf"); font-weight: 500; }
+  @font-face { font-family: "JBM"; src: url("../../insidir_studio/fonts/JetBrainsMono-Bold.ttf"); font-weight: 700; }
+  @font-face { font-family: "JBM"; src: url("../../insidir_studio/fonts/JetBrainsMono-ExtraBold.ttf"); font-weight: 800; }
+  :root { --bg: #050505; --em: #34d399; --ink: #ffffff; --dim: rgba(237,237,237,.62); --faint: rgba(237,237,237,.38);
+          --line: rgba(255,255,255,.09); --panel: rgba(255,255,255,.035); --down: #FF6B6B; --H: 1350px; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #222; font-family: "Jakarta", sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased;
+         font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+  .slide { width: 1080px; height: var(--H); background: var(--bg); position: relative; overflow: hidden;
+           display: flex; flex-direction: column; padding: 64px 72px 56px; margin-bottom: 40px; }
+  .slide::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 54px 54px; opacity: .45;
+    -webkit-mask-image: radial-gradient(ellipse at 50% 45%, #000 20%, transparent 78%); }
+  .slide::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 1px, transparent 1px 4px); }
+  .slide > * { position: relative; z-index: 1; }
+  .mono { font-family: "JBM", monospace; }
+  .em { color: var(--em); }
+
+  /* header / footer */
+  .hdr { display: flex; justify-content: space-between; align-items: center; }
+  .logo { display: inline-flex; align-items: center; gap: 14px; font-weight: 800; font-size: 40px; letter-spacing: -.6px; line-height: 1; }
+  .logo svg { width: 34px; height: 34px; transform: translateY(2px); }
+  .hdr .meta { font-family: "JBM", monospace; font-size: 20px; letter-spacing: .14em; color: var(--faint); text-align: right; line-height: 1.6; }
+  .hdr .meta b { color: var(--ink); font-weight: 700; }
+  .ftr { display: flex; justify-content: space-between; align-items: center; font-family: "JBM", monospace; font-size: 18px;
+         letter-spacing: .12em; color: var(--faint); border-top: 1px solid var(--line); padding-top: 26px; }
+  .ftr .swipe { color: var(--ink); font-weight: 700; }
+  .main { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+
+  .badge { align-self: flex-start; display: inline-flex; align-items: center; gap: 16px; padding: 14px 24px; border-radius: 999px;
+           border: 1.5px solid rgba(52,211,153,.45); background: rgba(52,211,153,.07); font-family: "JBM", monospace;
+           font-size: 22px; font-weight: 700; letter-spacing: .08em; }
+  .badge i { width: 14px; height: 14px; border-radius: 50%; background: var(--em); box-shadow: 0 0 0 6px rgba(52,211,153,.18), 0 0 18px var(--em); }
+  .kicker { font-family: "JBM", monospace; font-size: 22px; letter-spacing: .18em; color: var(--dim); }
+  h1 { font-weight: 800; letter-spacing: -.035em; line-height: .98; }
+  .glow { text-shadow: 0 0 34px rgba(52,211,153,.45); }
+  .lead { font-size: 36px; line-height: 1.38; color: var(--dim); font-weight: 500; letter-spacing: -.01em; }
+  .lead b { color: var(--ink); font-weight: 700; }
+
+  .card { border: 1.5px solid var(--line); background: var(--panel); border-radius: 22px; padding: 40px 44px; position: relative;
+          box-shadow: 0 0 60px rgba(52,211,153,.07); }
+  .card.hot { border-color: rgba(52,211,153,.35); box-shadow: 0 0 80px rgba(52,211,153,.14), inset 0 0 0 1px rgba(52,211,153,.06); }
+  .kv { display: grid; grid-template-columns: 300px 1fr; row-gap: 22px; font-family: "JBM", monospace; font-size: 28px; }
+  .kv .k { color: var(--faint); letter-spacing: .1em; font-size: 22px; padding-top: 5px; }
+  .kv .v { font-weight: 700; }
+  .fills { font-family: "JBM", monospace; font-size: 21px; color: var(--dim); line-height: 1.85; white-space: pre; }
+  .fills .h { color: var(--faint); letter-spacing: .1em; }
+  .chip { display: inline-block; font-family: "JBM", monospace; font-size: 26px; font-weight: 700; letter-spacing: .06em; color: var(--em);
+          border: 1.5px solid rgba(52,211,153,.5); background: rgba(52,211,153,.07); padding: 10px 18px; border-radius: 10px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); border: 1.5px solid var(--line); border-radius: 18px; overflow: hidden; }
+  .stats > div { padding: 26px 26px; border-right: 1.5px solid var(--line); }
+  .stats > div:last-child { border-right: 0; }
+  .stats .k { font-family: "JBM", monospace; font-size: 18px; letter-spacing: .14em; color: var(--faint); }
+  .stats .v { font-family: "JBM", monospace; font-size: 34px; font-weight: 800; margin-top: 10px; }
+
+  .point { display: grid; grid-template-columns: 70px 1fr; gap: 10px; padding: 30px 0; border-bottom: 1px solid var(--line); }
+  .point:last-child { border-bottom: 0; }
+  .point .n { font-family: "JBM", monospace; font-size: 26px; color: var(--em); font-weight: 700; padding-top: 6px; }
+  .point .t { font-size: 38px; font-weight: 700; line-height: 1.22; letter-spacing: -.02em; }
+  .point .s { font-size: 26px; color: var(--dim); margin-top: 10px; line-height: 1.4; }
+  .src { font-family: "JBM", monospace; font-size: 17px; color: var(--faint); letter-spacing: .06em; margin-top: 10px; }
+
+  .tl { position: relative; padding-left: 52px; }
+  .tl::before { content: ""; position: absolute; left: 13px; top: 18px; bottom: 18px; width: 2px; background: linear-gradient(var(--em), rgba(255,255,255,.15)); }
+  .tl .ev { position: relative; padding: 18px 0 30px; }
+  .tl .ev::before { content: ""; position: absolute; left: -48px; top: 26px; width: 20px; height: 20px; border-radius: 50%; background: var(--bg); border: 3px solid var(--faint); }
+  .tl .ev.on::before { border-color: var(--em); background: var(--em); box-shadow: 0 0 18px var(--em); }
+  .tl .d { font-family: "JBM", monospace; font-size: 22px; letter-spacing: .14em; color: var(--faint); }
+  .tl .e { font-size: 38px; font-weight: 700; letter-spacing: -.02em; margin-top: 6px; }
+
+  .btn { display: inline-flex; align-items: center; gap: 14px; background: #fdfdfd; color: #050505; font-weight: 800; font-size: 36px;
+         padding: 26px 44px; border-radius: 999px; letter-spacing: -.02em; }
+</style>
+</head>
+<body>
+
+<template id="logo"><span class="logo"><svg viewBox="0 0 64 64" fill="currentColor"><rect x="0" y="0" width="40" height="18"/><rect x="0" y="0" width="18" height="46"/><rect x="46" y="18" width="18" height="46"/><rect x="24" y="46" width="40" height="18"/></svg><span>insidir</span></span></template>
+
+<!-- 1 · HOOK -->
+<section class="slide" data-n="1">
+  <div class="main">
+    <div class="badge"><i></i>WHALE TELEMETRY · CODE P · $1B</div>
+    <h1 style="font-size:116px;margin-top:56px">Tesla's CEO<br>bought<br><span class="em glow mono" style="font-size:104px;letter-spacing:-.04em">$999,959,042</span><br>of his own stock.</h1>
+    <p class="lead" style="margin-top:44px">Not a grant. Not options.<br><b>Open-market buys, in one day.</b></p>
+  </div>
+</section>
+
+<!-- 2 · PROOF -->
+<section class="slide" data-n="2">
+  <div class="main">
+    <div class="kicker">&gt; RAW FILING · SEC EDGAR</div>
+    <h1 style="font-size:84px;margin:22px 0 44px">The Form 4.</h1>
+    <div class="card">
+      <div class="kv">
+        <div class="k">TICKER</div><div class="v">$TSLA</div>
+        <div class="k">REPORTER</div><div class="v">MUSK ELON</div>
+        <div class="k">ROLE</div><div class="v">CEO · DIRECTOR · 10%</div>
+        <div class="k">FILING CODE</div><div class="v em">P · OPEN MARKET BUY</div>
+        <div class="k">TRADE DATE</div><div class="v">2025-09-12</div>
+        <div class="k">FILED</div><div class="v">2025-09-15</div>
+        <div class="k">STATUS</div><div class="v em">● ON EDGAR</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:22px;padding:28px 44px">
+      <div class="fills"><span class="h">DATE        CODE   SHARES   AVG PRICE</span>
+2025-09-12  P      22,537   $371.90
+2025-09-12  P      34,530   $372.821
+2025-09-12  P      45,909   $373.989
+<span class="em">+ 22 more fills · up to $396.359</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 · REVEAL -->
+<section class="slide" data-n="3">
+  <div class="main">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="mono" style="font-size:150px;font-weight:800;letter-spacing:-.04em;line-height:1">$TSLA</div>
+      <div class="chip">CODE P (BUY)</div>
+    </div>
+    <div class="kicker" style="margin-top:56px">TRANSACTION VALUE</div>
+    <div class="mono em glow" style="font-size:150px;font-weight:800;letter-spacing:-.05em;line-height:1.05;margin-top:14px">$1.0B</div>
+    <div class="mono em" style="font-size:44px;font-weight:700;margin-top:6px">$999,959,042</div>
+    <div class="kicker" style="margin-top:48px">INSIDER</div>
+    <div style="font-size:60px;font-weight:800;letter-spacing:-.03em;margin-top:10px;line-height:1.05">Chief Executive Officer</div>
+    <div class="stats" style="margin-top:52px">
+      <div><div class="k">SHARES</div><div class="v">2,568,732</div></div>
+      <div><div class="k">AVG PRICE</div><div class="v">$389.28</div></div>
+      <div><div class="k">FILLS</div><div class="v">25</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 · CONTEXT -->
+<section class="slide" data-n="4">
+  <div class="main">
+    <div class="kicker">&gt; CONTEXT</div>
+    <h1 style="font-size:96px;margin:22px 0 30px">Why it<br>matters.</h1>
+    <div class="point"><div class="n">01</div><div><div class="t">His first open-market TSLA buy since early 2020.</div><div class="src">FOX BUSINESS / REUTERS · 2025-09-15</div></div></div>
+    <div class="point"><div class="n">02</div><div><div class="t">It came days after the board proposed a pay package worth up to $1 trillion.</div><div class="s">The package still needed a shareholder vote.</div></div></div>
+    <div class="point"><div class="n">03</div><div><div class="t">Bought through his revocable trust.</div><div class="s">Trust holding after the buys: <b class="mono" style="color:#fff">413,362,808</b> shares.</div></div></div>
+  </div>
+</section>
+
+<!-- 5 · PARADIGM SHIFT -->
+<section class="slide" data-n="5">
+  <div class="main">
+    <div class="kicker">&gt; THE LAG</div>
+    <h1 style="font-size:92px;margin:22px 0 50px">He bought on <span class="em">Friday.</span><br>Most people heard on <span style="color:var(--down)">Monday.</span></h1>
+    <div class="tl">
+      <div class="ev on"><div class="d">FRI · 2025-09-12</div><div class="e">25 open-market fills. $1.0B.</div></div>
+      <div class="ev on"><div class="d">MON · 2025-09-15</div><div class="e">Form 4 lands on EDGAR.</div></div>
+      <div class="ev"><div class="d">MON · 2025-09-15 · MIDDAY</div><div class="e">Headlines. TSLA +5.3% intraday.</div></div>
+    </div>
+    <p class="lead" style="margin-top:34px">The filing is public before the headline.<br><b>Read the filing.</b></p>
+  </div>
+</section>
+
+<!-- 6 · CTA -->
+<section class="slide" data-n="6">
+  <div class="main" style="align-items:center;text-align:center">
+    <span class="logo big" style="font-size:96px;gap:30px"><svg viewBox="0 0 64 64" fill="currentColor" style="width:82px;height:82px"><rect x="0" y="0" width="40" height="18"/><rect x="0" y="0" width="18" height="46"/><rect x="46" y="18" width="18" height="46"/><rect x="24" y="46" width="40" height="18"/></svg><span>insidir</span></span>
+    <h1 style="font-size:96px;margin-top:70px">Stop trading on<br><span class="em glow">3-day lag.</span></h1>
+    <p class="lead" style="margin-top:36px">Track raw whale telemetry<br>the moment it's filed.</p>
+    <div class="btn" style="margin-top:56px">insidir.com <span style="font-size:34px">→</span></div>
+  </div>
+</section>
+
+<script>
+const N = document.querySelectorAll(".slide").length;
+const logo = document.getElementById("logo").innerHTML;
+for (const s of document.querySelectorAll(".slide")) {
+  const n = +s.dataset.n;
+  s.insertAdjacentHTML("afterbegin",
+    `<div class="hdr">${n === N ? '<span></span>' : logo}<div class="meta">FORM 4 TELEMETRY<br><b>${String(n).padStart(2, "0")}</b> / ${String(N).padStart(2, "0")}</div></div>`);
+  s.insertAdjacentHTML("beforeend",
+    `<div class="ftr"><span>${n === N ? "RESEARCH TOOL · NOT INVESTMENT ADVICE" : "SOURCE: SEC EDGAR FORM 4 · FILED 2025-09-15"}</span><span class="swipe">${n === N ? "INSIDIR.COM" : "SWIPE →"}</span></div>`);
+}
+const h = new URLSearchParams(location.search).get("h");
+if (h) document.documentElement.style.setProperty("--H", h + "px");
+</script>
+</body>
+</html>

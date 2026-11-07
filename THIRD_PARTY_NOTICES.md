@@ -42,3 +42,7 @@ Music you add must be licensed for commercial use. The studio ships none.
 | CLIP ViT-B/32 (optional) | Prompt adherence score | MIT |
 | RIFE (rife-ncnn-vulkan), Real-ESRGAN (realesrgan-ncnn-vulkan), GFPGAN | Optional if you install them | MIT, BSD-3-Clause, Apache-2.0 (check model weights) |
 | Real-ESRGAN RRDBNet generator (re-implemented in `gen/upscale.py`) and RealESRGAN_x4plus weights (downloaded on first AI upscale) | Generate: AI upscaling | BSD-3-Clause (Xintao Wang et al.) |
+
+## Plus Jakarta Sans (promo/brand/PlusJakartaSans.woff2)
+
+The Insidir wordmark face, as served by insidir.com. SIL Open Font License 1.1, Copyright 2020 The Plus Jakarta Sans Project Authors (https://github.com/tokotype/PlusJakartaSans).

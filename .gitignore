@@ -10,3 +10,4 @@ motion/public/*.json
 motion/src/**/*.meta
 motion/output/
 promo/terminal/output/
+promo/carousel/output/
