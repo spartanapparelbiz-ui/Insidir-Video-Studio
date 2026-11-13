@@ -1,0 +1,68 @@
+name: First Insidir Reel - Render Proof
+
+on:
+  push:
+    branches:
+      - chatgpt/form4-reel-render-proof
+  pull_request:
+    paths:
+      - "examples/render_form4_reel.py"
+      - ".github/workflows/first-reel.yml"
+      - "insidir_studio/**"
+      - "motion/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      INSIDIR_STUDIO_HOME: ${{ github.workspace }}/.local-studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: motion/package-lock.json
+      - name: Install video libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg libass9
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          cd motion && npm ci --no-audit --no-fund
+          npx playwright-core install --with-deps chromium
+      - name: Verify script compliance and key unit tests
+        run: python -m unittest discover -s tests -k ComplianceTests
+      - name: Fetch the free local narration model
+        run: python -m insidir_studio download-models
+      - name: Render 30-second original Form 4 Reel
+        run: python examples/render_form4_reel.py --engine kokoro --destination artifacts
+      - name: Check real MP4 properties
+        run: |
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate -show_entries format=duration -of json artifacts/insidir-form4-first-reel.mp4
+          python - <<'PY'
+          import json, subprocess
+          path="artifacts/insidir-form4-first-reel.mp4"
+          p=json.loads(subprocess.check_output(["ffprobe","-v","error","-show_entries","format=duration:stream=width,height,codec_type","-of","json",path]))
+          v=next(s for s in p["streams"] if s["codec_type"] == "video")
+          duration=float(p["format"]["duration"])
+          assert (v["width"],v["height"]) == (1080,1920), v
+          assert 20 <= duration <= 36, duration
+          print("PASS",duration,"seconds, 1080x1920",flush=True)
+          PY
+      - name: Save real MP4 and report for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: insidir-form4-render-evidence
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 14

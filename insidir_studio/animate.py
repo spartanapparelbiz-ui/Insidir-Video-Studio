@@ -29,6 +29,14 @@ ICONS = ["document", "form", "magnifier", "clock", "calendar", "bell", "link", "
 POSES = ["stand", "wave", "point", "pointleft", "pointup", "think", "shrug", "cheer", "explain", "walk", "sad"]
 
 TEMPLATES = {
+    "editorial-story": {
+        "name": "Insidir: editorial finance",
+        "description": "Slower story-led SEC explainer with an Insidir dot-matrix narrator, original financial documents, source trails, no scene numbers.",
+        "best_for": "Black-and-ivory, precise financial explainers that explain one real concept per Reel.",
+        "fields": ["headline", "icon", "pose"],
+        "frame_format": "jpeg",
+        "prompt": "Write eight connected short beats for a single true finance story. The Insidir dot character follows the evidence from headline, through public filings, categories and transaction codes, to SEC source links and a plain-language takeaway. Avoid unsupported claims. Use 68-82 words total with readable 2-5 word headings and a calmer pace. Do not add numbered labels or a corner watermark.",
+    },
     "viral": {
         "name": "Viral cinematic",
         "description": "Huge kinetic captions, camera punch-ins, whip transitions, cinematic light and real Insidir screens under a spotlight.",

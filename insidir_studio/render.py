@@ -471,13 +471,17 @@ def _render(project_dir: Path, settings: dict | None = None, log=print, progress
     look_inputs, look_parts = look.chain(style, W, H, total, cuts, build, inputs.count("-i"), cur, "graded")
     inputs += look_inputs
     parts += look_parts
-    # the Insidir logo on every video (hidden under the end card, which shows the full wordmark)
-    logo = brand.logo_png(build / f"logo_{W}x{H}.png", W, H)
-    logo_idx = inputs.count("-i")
-    inputs += ["-loop", "1", "-framerate", str(out_fps), "-t", f"{total:.3f}", "-i", logo.name]
-    parts += brand.logo_parts("graded", logo_idx, "branded", W, H, style.get("logo_corner") or "top-left",
-                              until=end_card_start if end_card_on else None)
-    parts.append("[branded]ass=captions.ass:fontsdir=fonts,format=yuv420p[vout]")
+    # Let editorial films stand alone without a persistent corner watermark.
+    # The closing branded end-card still shows the authentic Insidir mark.
+    branded_src = "graded"
+    if style.get("logo_overlay", True):
+        logo = brand.logo_png(build / f"logo_{W}x{H}.png", W, H)
+        logo_idx = inputs.count("-i")
+        inputs += ["-loop", "1", "-framerate", str(out_fps), "-t", f"{total:.3f}", "-i", logo.name]
+        parts += brand.logo_parts("graded", logo_idx, "branded", W, H, style.get("logo_corner") or "top-left",
+                                  until=end_card_start if end_card_on else None)
+        branded_src = "branded"
+    parts.append(f"[{branded_src}]ass=captions.ass:fontsdir=fonts,format=yuv420p[vout]")
     parts.append(_audio_graph(len(run_files), use_music, total, music_db, has_sfx=use_sfx))
     out_dir = project_dir / "out"
     out_dir.mkdir(exist_ok=True)
